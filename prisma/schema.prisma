@@ -283,13 +283,14 @@ model ActualRevenueEntry {
 // ─── Stage Assumptions ────────────────────────────────────────────────────────
 
 model StageAssumption {
-  stage            DealStage @id
-  overallCloseRate Float
-  conversionToNext Float
-  avgDaysInStage   Int
-  updatedAt        DateTime  @updatedAt
-  updatedById      String?
-  updatedBy        User?     @relation(fields: [updatedById], references: [id])
+  stage             DealStage @id
+  overallCloseRate  Float // materialized effective rate: override ?? derived (recomputed on save)
+  closeRateOverride Float? // optional manual pin; when null, overallCloseRate is derived from conversion rates
+  conversionToNext  Float
+  avgDaysInStage    Int
+  updatedAt         DateTime  @updatedAt
+  updatedById       String?
+  updatedBy         User?     @relation(fields: [updatedById], references: [id])
 }
 
 // ─── Fiscal Config ────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { DealStage } from "@prisma/client";
+import { deriveCloseRates, effectiveCloseRate, ACTIVE_STAGE_ORDER } from "@/lib/close-rate";
 
 export async function GET() {
   const session = await auth();
@@ -21,7 +22,11 @@ type AssumptionUpdate = {
   stage: DealStage;
   conversionToNext: number;
   avgDaysInStage: number;
+  // Optional manual pin for the overall close rate. null/omitted = derive from conversion rates.
+  closeRateOverride?: number | null;
 };
+
+const ACTIVE_STAGES = new Set<string>(ACTIVE_STAGE_ORDER);
 
 export async function PATCH(req: Request) {
   const session = await auth();
@@ -40,18 +45,43 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid stage value" }, { status: 400 });
   }
 
+  // Derive each active stage's close rate, then materialize the effective rate
+  // (override ?? derived) into overallCloseRate. Derivation needs every active
+  // stage's conversion rate, so merge the submitted updates over the stored
+  // values in case a caller sends only a subset.
+  const existing = await prisma.stageAssumption.findMany({
+    select: { stage: true, conversionToNext: true },
+  });
+  const updateMap = new Map(updates.map((u) => [u.stage as string, u.conversionToNext]));
+  const existingMap = new Map(existing.map((e) => [e.stage as string, e.conversionToNext]));
+  const derived = deriveCloseRates(
+    ACTIVE_STAGE_ORDER.map((stage) => ({
+      stage,
+      conversionToNext: updateMap.get(stage) ?? existingMap.get(stage) ?? 0,
+    })),
+  );
+
   await prisma.$transaction(async (tx) => {
     await Promise.all(
-      updates.map((u) =>
-        tx.stageAssumption.update({
+      updates.map((u) => {
+        const isActive = ACTIVE_STAGES.has(u.stage as string);
+        const override = u.closeRateOverride ?? null;
+        return tx.stageAssumption.update({
           where: { stage: u.stage },
           data: {
             conversionToNext: u.conversionToNext,
             avgDaysInStage: u.avgDaysInStage,
             updatedById: session.user.id,
+            // Only active stages participate in the funnel close-rate model.
+            ...(isActive
+              ? {
+                  closeRateOverride: override,
+                  overallCloseRate: effectiveCloseRate(derived.get(u.stage as string) ?? 0, override),
+                }
+              : {}),
           },
-        })
-      )
+        });
+      })
     );
     await tx.auditLog.create({
       data: {

@@ -44,7 +44,6 @@ function formatRelative(at: string): string {
 
 const SOURCE_DETAIL_LABELS: Record<string, (d: Record<string, unknown>) => string> = {
   attio:    (d) => `${d.dealsUpserted ?? 0} deals · ${d.companiesUpserted ?? 0} companies`,
-  sheets:   (d) => `${d.rowsUpdated ?? 0} assumption rows`,
   snapshot: (d) => `${d.activeDealCount ?? 0} deals captured`,
 };
 

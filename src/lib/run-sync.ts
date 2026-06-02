@@ -1,7 +1,6 @@
 // src/lib/run-sync.ts
 import { prisma } from "@/lib/prisma";
 import { fetchDeals, fetchCompanies, fetchDealStageHistories } from "@/lib/attio";
-import { fetchSheetAssumptions } from "@/lib/sheets";
 import { buildDealUpsert } from "@/lib/sync-utils";
 import type { SalesType, CompanyStage, BudgetCycle } from "@prisma/client";
 
@@ -141,29 +140,4 @@ export async function runAttioSync(): Promise<AttioSyncResult> {
   }
 
   return { companiesUpserted, dealsUpserted, deletedDeals, deletedCompanies, durationMs: Date.now() - startedAt };
-}
-
-export type SheetsSyncResult = {
-  rowsUpdated: number;
-  durationMs: number;
-};
-
-export async function runSheetsSync(): Promise<SheetsSyncResult> {
-  const startedAt = Date.now();
-  const assumptions = await fetchSheetAssumptions();
-
-  await Promise.all(
-    assumptions.map((a) =>
-      prisma.stageAssumption.update({
-        where: { stage: a.stage },
-        data: {
-          avgDaysInStage: a.avgDaysInStage,
-          conversionToNext: a.conversionToNext,
-          overallCloseRate: a.overallCloseRate,
-        },
-      })
-    )
-  );
-
-  return { rowsUpdated: assumptions.length, durationMs: Date.now() - startedAt };
 }

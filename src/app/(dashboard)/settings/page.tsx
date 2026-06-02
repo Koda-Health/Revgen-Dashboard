@@ -42,6 +42,7 @@ export default async function SettingsPage() {
   const serializedAssumptions = assumptions.map((a) => ({
     stage: a.stage as string,
     overallCloseRate: a.overallCloseRate,
+    closeRateOverride: a.closeRateOverride,
     conversionToNext: a.conversionToNext,
     avgDaysInStage: a.avgDaysInStage,
   }));
