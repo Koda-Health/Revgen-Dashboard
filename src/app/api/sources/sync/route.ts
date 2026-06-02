@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { runAttioSync, runSheetsSync } from "@/lib/run-sync";
+import { runAttioSync } from "@/lib/run-sync";
 
 export const maxDuration = 60;
 
@@ -17,14 +17,6 @@ export async function POST(req: Request) {
       const result = await runAttioSync();
       await prisma.auditLog.create({
         data: { action: "SYNC_ATTIO", details: result },
-      });
-      return NextResponse.json({ ok: true, ...result });
-    }
-
-    if (source === "sheets") {
-      const result = await runSheetsSync();
-      await prisma.auditLog.create({
-        data: { action: "SYNC_SHEETS", details: result },
       });
       return NextResponse.json({ ok: true, ...result });
     }

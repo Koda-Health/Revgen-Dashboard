@@ -8,14 +8,10 @@ export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [attioLog, sheetsLog, snapshotLog, dealCount, companyCount, manifestCount, revenueCount] =
+  const [attioLog, snapshotLog, dealCount, companyCount, manifestCount, revenueCount] =
     await Promise.all([
       prisma.auditLog.findFirst({
         where: { action: "SYNC_ATTIO" },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.auditLog.findFirst({
-        where: { action: "SYNC_SHEETS" },
         orderBy: { createdAt: "desc" },
       }),
       prisma.auditLog.findFirst({
@@ -46,7 +42,6 @@ export async function GET() {
   const body: StatusResponse = {
     sources: [
       toSource("attio", "Attio CRM", attioLog),
-      toSource("sheets", "Google Sheets", sheetsLog),
       toSource("snapshot", "Pipeline Snapshot", snapshotLog),
     ],
     dbCounts: {

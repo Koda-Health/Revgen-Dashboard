@@ -8,10 +8,9 @@ import { prisma } from "@/lib/prisma";
 import type { SourceStatus } from "@/types/sources";
 
 async function getInitialStatus() {
-  const [attioLog, sheetsLog, snapshotLog, dealCount, companyCount, manifestCount, revenueCount] =
+  const [attioLog, snapshotLog, dealCount, companyCount, manifestCount, revenueCount] =
     await Promise.all([
       prisma.auditLog.findFirst({ where: { action: "SYNC_ATTIO" }, orderBy: { createdAt: "desc" } }),
-      prisma.auditLog.findFirst({ where: { action: "SYNC_SHEETS" }, orderBy: { createdAt: "desc" } }),
       prisma.auditLog.findFirst({ where: { action: "SNAPSHOT_CREATED" }, orderBy: { createdAt: "desc" } }),
       prisma.deal.count(),
       prisma.company.count(),
@@ -34,7 +33,6 @@ async function getInitialStatus() {
   return {
     sources: [
       toSource("attio", "Attio CRM", attioLog),
-      toSource("sheets", "Google Sheets", sheetsLog),
       toSource("snapshot", "Pipeline Snapshot", snapshotLog),
     ],
     dbCounts: { deals: dealCount, companies: companyCount, snapshotManifests: manifestCount, revenueEntries: revenueCount },
