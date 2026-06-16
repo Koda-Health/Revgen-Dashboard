@@ -13,18 +13,28 @@ type Props = {
   subValue?: string;
   delta?: { display: string; positive: boolean } | null;
   flagColor?: FlagColor | null;
+  /** Optional accent color (hex) applied to the top bar and value text. */
+  accentColor?: string;
 };
 
-export function KpiCard({ label, value, subValue, delta, flagColor }: Props) {
+export function KpiCard({ label, value, subValue, delta, flagColor, accentColor }: Props) {
   const accent = flagColor ? ACCENT_BAR[flagColor] : "bg-teal";
   return (
     <div className="relative bg-white rounded-card shadow-card overflow-hidden">
-      <div className={`absolute inset-x-0 top-0 h-[3px] ${accent}`} />
+      <div
+        className={`absolute inset-x-0 top-0 h-[3px] ${accentColor ? "" : accent}`}
+        style={accentColor ? { backgroundColor: accentColor } : undefined}
+      />
       <div className="bg-gradient-to-b from-white to-slate-50/60 p-6">
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.08em] mb-3">
           {label}
         </p>
-        <p className={`text-[2.25rem] leading-none font-bold tabular-nums ${flagColor === "green" ? "text-green" : "text-navy"}`}>
+        <p
+          className={`text-[2.25rem] leading-none font-bold tabular-nums ${
+            accentColor ? "" : flagColor === "green" ? "text-green" : "text-navy"
+          }`}
+          style={accentColor ? { color: accentColor } : undefined}
+        >
           {value}
         </p>
         {subValue && (

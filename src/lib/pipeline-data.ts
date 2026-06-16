@@ -3,7 +3,7 @@ import { weightedForecast } from "@/lib/calculations";
 import type { DealRow } from "@/components/ui/DealTable";
 import {
   type Pipeline, NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER, RENEWAL_AT_RISK,
-  pipelineForStage,
+  RENEWAL_LOST, pipelineForStage,
 } from "@/lib/stages";
 
 import type { BreakdownEntry } from "@/lib/format";
@@ -18,6 +18,9 @@ export type PipelineData = {
   weightedForecast: number;
   winRateTtm: number;
   avgSalesCycleDays: number;
+  // Renewal-specific KPIs (0 for new_logo, whose stages won't be present)
+  atRiskArr: number;
+  churnedCount: number;
   // Breakdowns for 2×2 bar charts
   byStage: BreakdownEntry[];
   bySource: BreakdownEntry[];
@@ -84,6 +87,14 @@ export async function getPipelineData(pipeline: Pipeline = "new_logo"): Promise<
   const pipelineTotal = activeDeals.reduce((s, d) => s + Number(d.value ?? 0), 0);
   const activeDealCount = activeDeals.length;
   const avgDealSize = activeDealCount > 0 ? pipelineTotal / activeDealCount : 0;
+
+  // Renewal-specific KPIs. At-risk deals are still active, so draw from
+  // activeDeals; churned/lost deals aren't active, so churnedCount uses
+  // pipelineDeals.
+  const atRiskArr = activeDeals
+    .filter((d) => d.stage === RENEWAL_AT_RISK)
+    .reduce((s, d) => s + Number(d.value ?? 0), 0);
+  const churnedCount = pipelineDeals.filter((d) => d.stage === RENEWAL_LOST).length;
 
   const forecast = weightedForecast(
     activeDeals.map((d) => ({ value: d.value, stage: d.stage, status: "active" as const })),
@@ -166,6 +177,7 @@ export async function getPipelineData(pipeline: Pipeline = "new_logo"): Promise<
     pipeline,
     pipelineTotal, activeDealCount, avgDealSize, weightedForecast: forecast,
     winRateTtm, avgSalesCycleDays,
+    atRiskArr, churnedCount,
     byStage: toStageEntries(byStageMap, STAGE_SORT_BY_PIPELINE[pipeline]),
     bySource: toEntries(bySourceMap),
     byCompanyType: toEntries(byCompanyTypeMap),
