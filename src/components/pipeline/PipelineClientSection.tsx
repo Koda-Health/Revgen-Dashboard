@@ -55,7 +55,13 @@ function deriveFilteredData(data: PipelineData, yearFilter: string): PipelineDat
   };
 }
 
-export function PipelineClientSection({ data }: { data: PipelineData }) {
+export function PipelineClientSection({
+  data,
+  variant = "new_logo",
+}: {
+  data: PipelineData;
+  variant?: "new_logo" | "renewal";
+}) {
   const [yearFilter, setYearFilter] = useState("All");
 
   const filteredData = useMemo(() => deriveFilteredData(data, yearFilter), [data, yearFilter]);
@@ -84,7 +90,7 @@ export function PipelineClientSection({ data }: { data: PipelineData }) {
           </button>
         )}
       </div>
-      <PipelineKpiStrip data={filteredData} />
+      <PipelineKpiStrip data={filteredData} variant={variant} />
       <PipelineBarCharts data={filteredData} />
       <InteractiveBreakdown deals={filteredData.activeDeals} />
     </div>

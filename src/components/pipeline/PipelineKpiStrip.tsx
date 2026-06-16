@@ -2,7 +2,12 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { formatCurrency, formatPct } from "@/lib/format";
 import type { PipelineData } from "@/lib/pipeline-data";
 
-export function PipelineKpiStrip({ data }: { data: PipelineData }) {
+export function PipelineKpiStrip({
+  data,
+}: {
+  data: PipelineData;
+  variant?: "new_logo" | "renewal";
+}) {
   return (
     <div className="grid grid-cols-5 gap-4">
       <KpiCard label="Total Pipeline" value={formatCurrency(data.pipelineTotal)} />

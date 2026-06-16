@@ -1,4 +1,4 @@
-import { STAGE_LABELS } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/stages";
 
 const STAGE_STYLES: Record<string, string> = {
   first_convo:  "bg-blue-50 text-blue-700",
