@@ -16,26 +16,31 @@ export function PipelineKpiStrip({
     <KpiCard key="avg" label="Avg Deal Size" value={formatCurrency(data.avgDealSize)} />,
   ];
 
-  const variantCards =
-    variant === "renewal"
-      ? [
-          <KpiCard
-            key="at-risk"
-            label="At-Risk ARR"
-            value={formatCurrency(data.atRiskArr)}
-            accentColor="#EE8363"
-          />,
-          <KpiCard key="churned" label="Churned (TTM)" value={String(data.churnedCount)} />,
-        ]
-      : [
-          <KpiCard key="win-rate" label="Win Rate (TTM)" value={formatPct(data.winRateTtm)} />,
-          <KpiCard
-            key="sales-cycle"
-            label="Avg Sales Cycle"
-            value={`${data.avgSalesCycleDays}d`}
-            subValue="First Convo → Close"
-          />,
-        ];
+  if (variant === "renewal") {
+    const renewalCards = [
+      <KpiCard key="pipeline" label="Total Pipeline" value={formatCurrency(data.pipelineTotal)} />,
+      <KpiCard key="weighted" label="Weighted Forecast" value={formatCurrency(data.weightedForecast)} />,
+      <KpiCard key="active" label="Active Deals" value={String(data.activeDealCount)} />,
+      <KpiCard
+        key="at-risk"
+        label="At-Risk ARR"
+        value={formatCurrency(data.atRiskArr)}
+        accentColor="#EE8363"
+      />,
+      <KpiCard key="churned" label="Churned" value={String(data.churnedCount)} />,
+    ];
+    return <div className="grid grid-cols-5 gap-4">{renewalCards}</div>;
+  }
+
+  const variantCards = [
+    <KpiCard key="win-rate" label="Win Rate (TTM)" value={formatPct(data.winRateTtm)} />,
+    <KpiCard
+      key="sales-cycle"
+      label="Avg Sales Cycle"
+      value={`${data.avgSalesCycleDays}d`}
+      subValue="First Convo → Close"
+    />,
+  ];
 
   return (
     <div className="grid grid-cols-5 gap-4">
