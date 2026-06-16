@@ -1,14 +1,8 @@
 import type { Deal, StageAssumption, DealStage } from "@prisma/client";
+import { NEW_LOGO_STAGE_ORDER, IMPLEMENTATION_LAG_DAYS } from "@/lib/stages";
 
-export const STAGE_ORDER = [
-  "first_convo",
-  "opp_qual",
-  "stakeholder",
-  "verbal",
-  "contracting",
-] as const;
-
-export type ActiveStage = typeof STAGE_ORDER[number];
+export const STAGE_ORDER = NEW_LOGO_STAGE_ORDER;
+export type ActiveStage = (typeof STAGE_ORDER)[number];
 
 /**
  * Weighted forecast: sum of (deal value × overall close rate) for active deals.
@@ -45,7 +39,7 @@ export function inYearRevenue(
   const remainingDays =
     STAGE_ORDER.slice(stageIndex).reduce((sum, s) => {
       return sum + (assumptionMap.get(s)?.avgDaysInStage ?? 0);
-    }, 0) + 60; // +60d implementation buffer
+    }, 0) + IMPLEMENTATION_LAG_DAYS; // implementation buffer
 
   const daysElapsed = Math.floor(
     (today.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
