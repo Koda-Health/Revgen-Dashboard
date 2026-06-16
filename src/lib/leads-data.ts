@@ -2,15 +2,9 @@ import { prisma } from "@/lib/prisma";
 import type { DealStatus, CompanyStage } from "@prisma/client";
 import type { BreakdownEntry } from "@/lib/format";
 import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
+import { NEW_LOGO_STAGE_ORDER, IMPLEMENTATION_LAG_DAYS, pipelineForStage } from "@/lib/stages";
 
-const ACTIVE_STAGES = [
-  "first_convo",
-  "opp_qual",
-  "stakeholder",
-  "verbal",
-  "contracting",
-] as const;
-
+const ACTIVE_STAGES = NEW_LOGO_STAGE_ORDER;
 type ActiveStage = (typeof ACTIVE_STAGES)[number];
 
 export type BlueprintRow = {
@@ -225,6 +219,11 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
 
   const assumptionMap = new Map(assumptions.map((a) => [a.stage as string, a]));
 
+  // Restrict blueprint actuals + weighted forecast to NEW-LOGO deals only.
+  const newLogoActive = activeDeals.filter(
+    (d) => pipelineForStage(d.stage as string | null) === "new_logo"
+  );
+
   const blueprint: BlueprintRow[] = ACTIVE_STAGES.map((stage, i) => {
     const assumption = assumptionMap.get(stage);
     const overallCloseRate = assumption?.overallCloseRate ?? 0.21;
@@ -235,14 +234,14 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
       ACTIVE_STAGES.slice(i).reduce(
         (sum, s) => sum + (assumptionMap.get(s)?.avgDaysInStage ?? 0),
         0
-      ) + 60;
+      ) + IMPLEMENTATION_LAG_DAYS;
 
     const deadlineDate = new Date(fiscalYearEnd);
     deadlineDate.setDate(deadlineDate.getDate() - remainingDays);
     const isOverdue = deadlineDate < today;
 
     const laterStages = ACTIVE_STAGES.slice(i) as string[];
-    const actualDealsList = activeDeals.filter((d) => laterStages.includes(d.stage as string));
+    const actualDealsList = newLogoActive.filter((d) => laterStages.includes(d.stage as string));
     const actualDeals = actualDealsList.length;
     const actualValue = actualDealsList.reduce((s, d) => s + Number(d.value ?? 0), 0);
 
@@ -308,13 +307,13 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
   const rateMap = new Map(assumptions.map((a) => [a.stage as string, a.overallCloseRate]));
 
   const weightedForecastBreakdown: WeightedForecastDeal[] = [];
-  for (const deal of activeDeals) {
+  for (const deal of newLogoActive) {
     if (!deal.expectedClosedDate || !deal.stage || !deal.value) continue;
     const closeDate = new Date(deal.expectedClosedDate);
     if (closeDate < fiscalYearStart || closeDate > fiscalYearEndDate) continue;
     const closeRate = rateMap.get(deal.stage as string) ?? 0;
-    // Add 60-day implementation period: revenue starts 60 days after close date
-    const revenueStartDate = new Date(closeDate.getTime() + 60 * 24 * 60 * 60 * 1000);
+    // Add implementation lag: revenue starts IMPLEMENTATION_LAG_DAYS after close date
+    const revenueStartDate = new Date(closeDate.getTime() + IMPLEMENTATION_LAG_DAYS * 24 * 60 * 60 * 1000);
     const remainingMs = Math.max(0, fiscalYearEndDate.getTime() - revenueStartDate.getTime());
     const timingFactor = yearMs > 0 ? remainingMs / yearMs : 0;
     const contribution = Number(deal.value) * closeRate * timingFactor;
