@@ -1,4 +1,5 @@
 import pLimit from "p-limit";
+import { attioStageToSlug } from "@/lib/stages";
 
 const ATTIO_BASE = "https://api.attio.com/v2";
 const ATTIO_KEY = process.env.ATTIO_API_KEY;
@@ -94,16 +95,6 @@ function getRef(record: AttioRecord, slug: string): string | null {
 }
 
 // ─── Attio → internal slug maps ──────────────────────────────────────────────
-
-const STAGE_MAP: Record<string, string> = {
-  "First Conversation": "first_convo",
-  "Opp Qualification":  "opp_qual",
-  "Stakeholder Buy-In": "stakeholder",
-  "Verbal Commit":      "verbal",
-  "Contracting":        "contracting",
-  "Closed-Won":         "closed_won",
-  "Lost":               "lost",
-};
 
 const SOURCE_MAP: Record<string, string> = {
   "Event or Conference": "conference",
@@ -204,7 +195,7 @@ export async function fetchDeals(): Promise<AttioDeal[]> {
     name: getText(r, "name") ?? "(unnamed)",
     companyId: getRef(r, "associated_company"),
     value: getNumber(r, "value"),
-    stage: mapOrNull(getStatus(r, "stage"), STAGE_MAP),
+    stage: attioStageToSlug(getStatus(r, "stage")),
     source: mapOrNull(getStatus(r, "deal_source_3"), SOURCE_MAP),
     typeOfDeal: mapOrNull(getStatus(r, "type_of_deal"), DEAL_TYPE_MAP),
     productLine: mapOrNull(getStatus(r, "product_line"), PRODUCT_LINE_MAP),
