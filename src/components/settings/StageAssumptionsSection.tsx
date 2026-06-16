@@ -2,10 +2,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { deriveCloseRates, ACTIVE_STAGE_ORDER } from "@/lib/close-rate";
+import { deriveCloseRates } from "@/lib/close-rate";
+import { NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER, RENEWAL_AT_RISK, STAGE_LABELS } from "@/lib/stages";
 
 type AssumptionRow = {
   stage: string;
+  pipeline: "new_logo" | "renewal";
   overallCloseRate: number; // materialized effective rate (server-computed)
   closeRateOverride: number | null; // manual pin; null = use derived
   conversionToNext: number;
@@ -16,31 +18,41 @@ type Props = {
   initialRows: AssumptionRow[];
 };
 
-const STAGE_LABELS: Record<string, string> = {
-  first_convo:  "First Conversation",
-  opp_qual:     "Opp Qualification",
-  stakeholder:  "Stakeholder Buy-In",
-  verbal:       "Verbal Commit",
-  contracting:  "Contracting",
-  closed_won:   "Closed Won",
-  lost:         "Lost",
-};
-
-const STAGE_ORDER = ["first_convo", "opp_qual", "stakeholder", "verbal", "contracting", "closed_won", "lost"];
-const ACTIVE_STAGES = new Set<string>(ACTIVE_STAGE_ORDER);
-
 export function StageAssumptionsSection({ initialRows }: Props) {
-  const sorted = [...initialRows].sort(
-    (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage)
-  );
-  const [rows, setRows] = useState<AssumptionRow[]>(sorted);
+  const [rows, setRows] = useState<AssumptionRow[]>(initialRows);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Live-derived close rate per active stage from the current conversion rates.
-  const derived = useMemo(
-    () => deriveCloseRates(rows.map((r) => ({ stage: r.stage, conversionToNext: r.conversionToNext }))),
-    [rows]
+  // Group rows into the two pipelines in canonical order.
+  const { newLogoRows, renewalChainRows, atRiskRow } = useMemo(() => {
+    const byStage = new Map(rows.map((r) => [r.stage, r]));
+    return {
+      newLogoRows: NEW_LOGO_STAGE_ORDER.map((s) => byStage.get(s)).filter(
+        (r): r is AssumptionRow => r != null
+      ),
+      renewalChainRows: RENEWAL_CHAIN_ORDER.map((s) => byStage.get(s)).filter(
+        (r): r is AssumptionRow => r != null
+      ),
+      atRiskRow: byStage.get(RENEWAL_AT_RISK) ?? null,
+    };
+  }, [rows]);
+
+  // Live-derived close rate per chain stage from the current conversion rates.
+  const newLogoDerived = useMemo(
+    () =>
+      deriveCloseRates(
+        newLogoRows.map((r) => ({ stage: r.stage, conversionToNext: r.conversionToNext })),
+        NEW_LOGO_STAGE_ORDER
+      ),
+    [newLogoRows]
+  );
+  const renewalDerived = useMemo(
+    () =>
+      deriveCloseRates(
+        renewalChainRows.map((r) => ({ stage: r.stage, conversionToNext: r.conversionToNext })),
+        RENEWAL_CHAIN_ORDER
+      ),
+    [renewalChainRows]
   );
 
   function handleChange(stage: string, field: "conversionToNext" | "avgDaysInStage", value: string) {
@@ -110,93 +122,50 @@ export function StageAssumptionsSection({ initialRows }: Props) {
       </h2>
       <p className="text-xs text-slate-500 mb-5">
         These values are the single source of truth for the Dashboard weighted forecast, the Leads
-        pipeline math, and the Analyzer conversion analysis. Overall Close Rate is derived from the
-        conversion rates (cumulative funnel math); set an override to pin a specific rate.
+        pipeline math, and the Analyzer conversion analysis, across both the New Logo and Renewals
+        pipelines. Overall Close Rate is derived from the conversion rates (cumulative funnel math);
+        set an override to pin a specific rate.
       </p>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-left text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
-              <th className="px-5 py-3 pr-6 w-48">Stage</th>
-              <th className="px-5 py-3 pr-6 text-right w-36">Conv. to Next</th>
-              <th className="px-5 py-3 pr-6 text-right w-56">Overall Close Rate</th>
-              <th className="px-5 py-3 text-right w-36">Avg Days in Stage</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const isActive = ACTIVE_STAGES.has(row.stage);
-              const derivedRate = derived.get(row.stage) ?? 0;
-              const hasOverride = row.closeRateOverride != null;
-              const effectiveRate = hasOverride ? row.closeRateOverride! : derivedRate;
-              return (
-                <tr key={row.stage} className="border-b border-slate-100 last:border-0 even:bg-slate-50/40 hover:bg-teal/5 transition-colors">
-                  <td className="px-5 py-3 pr-6 font-semibold text-navy">
-                    {STAGE_LABELS[row.stage] ?? row.stage}
-                  </td>
-                  <td className="px-5 py-2.5 pr-6">
-                    <div className="flex items-center justify-end gap-1">
-                      <input
-                        type="number"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={row.conversionToNext}
-                        onChange={(e) => handleChange(row.stage, "conversionToNext", e.target.value)}
-                        className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg text-navy font-medium focus:outline-none focus:ring-2 focus:ring-teal/40"
-                      />
-                      <span className="text-xs text-slate-400 w-8 text-right">
-                        {(row.conversionToNext * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-2.5 pr-6">
-                    {isActive ? (
-                      <div className="flex items-center justify-end gap-3">
-                        <span className="text-xs text-slate-400 whitespace-nowrap">
-                          derived <span className="font-semibold text-slate-500">{(derivedRate * 100).toFixed(1)}%</span>
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={row.closeRateOverride ?? ""}
-                            placeholder="override"
-                            onChange={(e) => handleOverrideChange(row.stage, e.target.value)}
-                            className={`w-24 px-2 py-1 text-sm text-right border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-teal/40 ${
-                              hasOverride ? "border-teal text-teal" : "border-slate-200 text-navy"
-                            }`}
-                          />
-                          <span className={`text-xs w-10 text-right ${hasOverride ? "text-teal font-semibold" : "text-slate-400"}`}>
-                            {(effectiveRate * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-right text-xs text-slate-300">—</div>
-                    )}
-                  </td>
-                  <td className="px-5 py-2.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={row.avgDaysInStage}
-                        onChange={(e) => handleChange(row.stage, "avgDaysInStage", e.target.value)}
-                        className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg text-navy font-medium focus:outline-none focus:ring-2 focus:ring-teal/40"
-                      />
-                      <span className="text-xs text-slate-400 w-6">d</span>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="space-y-7">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-navy mb-2">
+            New Logo
+          </h3>
+          <AssumptionTable>
+            <StageRows
+              groupRows={newLogoRows}
+              derived={newLogoDerived}
+              showDerived
+              onChange={handleChange}
+              onOverrideChange={handleOverrideChange}
+            />
+          </AssumptionTable>
+        </div>
+
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-navy mb-2">
+            Renewals
+          </h3>
+          <AssumptionTable>
+            <StageRows
+              groupRows={renewalChainRows}
+              derived={renewalDerived}
+              showDerived
+              onChange={handleChange}
+              onOverrideChange={handleOverrideChange}
+            />
+            {atRiskRow && (
+              <StageRows
+                groupRows={[atRiskRow]}
+                derived={new Map()}
+                showDerived={false}
+                onChange={handleChange}
+                onOverrideChange={handleOverrideChange}
+              />
+            )}
+          </AssumptionTable>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 mt-5 pt-4 border-t border-slate-200">
@@ -217,5 +186,109 @@ export function StageAssumptionsSection({ initialRows }: Props) {
         </p>
       </div>
     </div>
+  );
+}
+
+function AssumptionTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="bg-slate-50 border-b border-slate-200 text-left text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+            <th className="px-5 py-3 pr-6 w-48">Stage</th>
+            <th className="px-5 py-3 pr-6 text-right w-36">Conv. to Next</th>
+            <th className="px-5 py-3 pr-6 text-right w-56">Overall Close Rate</th>
+            <th className="px-5 py-3 text-right w-36">Avg Days in Stage</th>
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function StageRows({
+  groupRows,
+  derived,
+  showDerived,
+  onChange,
+  onOverrideChange,
+}: {
+  groupRows: AssumptionRow[];
+  derived: Map<string, number>;
+  showDerived: boolean;
+  onChange: (stage: string, field: "conversionToNext" | "avgDaysInStage", value: string) => void;
+  onOverrideChange: (stage: string, value: string) => void;
+}) {
+  return (
+    <>
+      {groupRows.map((row) => {
+        const derivedRate = derived.get(row.stage) ?? 0;
+        const hasOverride = row.closeRateOverride != null;
+        const effectiveRate = hasOverride ? row.closeRateOverride! : derivedRate;
+        return (
+          <tr key={row.stage} className="border-b border-slate-100 last:border-0 even:bg-slate-50/40 hover:bg-teal/5 transition-colors">
+            <td className="px-5 py-3 pr-6 font-semibold text-navy">
+              {STAGE_LABELS[row.stage] ?? row.stage}
+            </td>
+            <td className="px-5 py-2.5 pr-6">
+              <div className="flex items-center justify-end gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={row.conversionToNext}
+                  onChange={(e) => onChange(row.stage, "conversionToNext", e.target.value)}
+                  className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg text-navy font-medium focus:outline-none focus:ring-2 focus:ring-teal/40"
+                />
+                <span className="text-xs text-slate-400 w-8 text-right">
+                  {(row.conversionToNext * 100).toFixed(0)}%
+                </span>
+              </div>
+            </td>
+            <td className="px-5 py-2.5 pr-6">
+              <div className="flex items-center justify-end gap-3">
+                {showDerived && (
+                  <span className="text-xs text-slate-400 whitespace-nowrap">
+                    derived <span className="font-semibold text-slate-500">{(derivedRate * 100).toFixed(1)}%</span>
+                  </span>
+                )}
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={row.closeRateOverride ?? ""}
+                    placeholder={showDerived ? "override" : "rate"}
+                    onChange={(e) => onOverrideChange(row.stage, e.target.value)}
+                    className={`w-24 px-2 py-1 text-sm text-right border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-teal/40 ${
+                      hasOverride ? "border-teal text-teal" : "border-slate-200 text-navy"
+                    }`}
+                  />
+                  <span className={`text-xs w-10 text-right ${hasOverride ? "text-teal font-semibold" : "text-slate-400"}`}>
+                    {(effectiveRate * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </td>
+            <td className="px-5 py-2.5">
+              <div className="flex items-center justify-end gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={row.avgDaysInStage}
+                  onChange={(e) => onChange(row.stage, "avgDaysInStage", e.target.value)}
+                  className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg text-navy font-medium focus:outline-none focus:ring-2 focus:ring-teal/40"
+                />
+                <span className="text-xs text-slate-400 w-6">d</span>
+              </div>
+            </td>
+          </tr>
+        );
+      })}
+    </>
   );
 }
