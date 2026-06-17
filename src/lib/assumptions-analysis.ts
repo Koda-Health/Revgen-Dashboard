@@ -1,7 +1,9 @@
 // src/lib/assumptions-analysis.ts
 import { prisma } from "@/lib/prisma";
+import { NEW_LOGO_STAGE_ORDER } from "@/lib/stages";
 
-const STAGE_ORDER = ["first_convo", "opp_qual", "stakeholder", "verbal", "contracting"] as const;
+// New-logo ACQUISITION funnel. Renewals are analyzed separately (two-pipeline design).
+const STAGE_ORDER = NEW_LOGO_STAGE_ORDER;
 type ActiveStage = (typeof STAGE_ORDER)[number];
 
 export type AssumptionRow = {

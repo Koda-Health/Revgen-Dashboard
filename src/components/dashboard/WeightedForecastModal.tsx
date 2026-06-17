@@ -4,17 +4,10 @@
 import { useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { formatCurrency, formatPct } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/stages";
 import { useScenario } from "@/lib/use-scenario";
 import { computeAdjustedForecast } from "@/lib/compute-adjusted-forecast";
 import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
-
-const STAGE_LABELS: Record<string, string> = {
-  first_convo:  "First Convo",
-  opp_qual:     "Opp Qual",
-  stakeholder:  "Stakeholder",
-  verbal:       "Verbal",
-  contracting:  "Contracting",
-};
 
 type Props = {
   open: boolean;

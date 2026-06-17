@@ -1,5 +1,6 @@
 import type { AttioDeal } from "@/lib/attio";
 import type { DealStage, DealSource, DealType, ProductLine, PaymentStructure, DealStatus } from "@prisma/client";
+import { WON_STAGES, LOST_STAGES } from "@/lib/stages";
 
 const STALL_DAYS = 60;
 
@@ -11,8 +12,8 @@ export function computeDealStatus(
   stage: string | null,
   stageEnteredAt: Date | null
 ): "active" | "won" | "lost" | "stalled" {
-  if (stage === "closed_won") return "won";
-  if (stage === "lost") return "lost";
+  if (stage && WON_STAGES.has(stage)) return "won";
+  if (stage && LOST_STAGES.has(stage)) return "lost";
   if (stageEnteredAt) {
     const daysSince =
       (Date.now() - stageEnteredAt.getTime()) / (1000 * 60 * 60 * 24);
@@ -50,8 +51,8 @@ export function buildDealUpsert(
       stageEnteredAt,
       firstConvoDate: deal.firstConvoDate,
       expectedClosedDate: deal.expectedClosedDate,
-      closedWonDate: deal.stage === "closed_won" ? deal.closeDate : null,
-      closedLostDate: deal.stage === "lost" ? deal.closeDate : null,
+      closedWonDate: deal.stage && WON_STAGES.has(deal.stage) ? deal.closeDate : null,
+      closedLostDate: deal.stage && LOST_STAGES.has(deal.stage) ? deal.closeDate : null,
       implementationFeeValue: deal.implementationFeeValue,
       integrationFeeValue: deal.integrationFeeValue,
       attioUpdatedAt: deal.attioUpdatedAt,
@@ -71,8 +72,8 @@ export function buildDealUpsert(
       stageEnteredAt,
       firstConvoDate: deal.firstConvoDate,
       expectedClosedDate: deal.expectedClosedDate,
-      closedWonDate: deal.stage === "closed_won" ? deal.closeDate : null,
-      closedLostDate: deal.stage === "lost" ? deal.closeDate : null,
+      closedWonDate: deal.stage && WON_STAGES.has(deal.stage) ? deal.closeDate : null,
+      closedLostDate: deal.stage && LOST_STAGES.has(deal.stage) ? deal.closeDate : null,
       implementationFeeValue: deal.implementationFeeValue,
       integrationFeeValue: deal.integrationFeeValue,
       attioCreatedAt: deal.attioCreatedAt,

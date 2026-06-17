@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { pipelineForStage, IMPLEMENTATION_LAG_DAYS } from "@/lib/stages";
 import type { DealRow } from "@/components/ui/DealTable";
 import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 export type { BreakdownEntry } from "@/lib/format";
@@ -12,6 +13,11 @@ export type DashboardData = {
   weightedForecast: number;
   weightedForecastBreakdown: WeightedForecastDeal[];
   pipelineCoverage: number;
+  pipelineSplit: {
+    newLogo: { pipeline: number; weighted: number; count: number };
+    renewal: { pipeline: number; weighted: number; count: number };
+    combined: { pipeline: number; weighted: number; count: number };
+  };
   // Revenue
   revenueToDate: number;
   expectedFromExisting: number;
@@ -73,14 +79,29 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   const yearMs = fiscalYearEnd.getTime() - fiscalYearStart.getTime();
   const rateMap = new Map(assumptions.map((a) => [a.stage as string, a.overallCloseRate]));
 
+  const splitAgg = (predicate: (stage: string | null) => boolean) => {
+    const ds = activeDeals.filter((d) => predicate(d.stage as string | null));
+    const pipeline = ds.reduce((s, d) => s + Number(d.value ?? 0), 0);
+    const weighted = ds.reduce((s, d) => s + Number(d.value ?? 0) * (rateMap.get(d.stage as string) ?? 0), 0);
+    return { pipeline, weighted, count: ds.length };
+  };
+  const newLogoSplit = splitAgg((s) => pipelineForStage(s) === "new_logo");
+  const renewalSplit = splitAgg((s) => pipelineForStage(s) === "renewal");
+  const combinedSplit = {
+    pipeline: newLogoSplit.pipeline + renewalSplit.pipeline,
+    weighted: newLogoSplit.weighted + renewalSplit.weighted,
+    count: newLogoSplit.count + renewalSplit.count,
+  };
+
   const weightedForecastBreakdown: WeightedForecastDeal[] = [];
   const weightedForecast = activeDeals.reduce((sum, deal) => {
+    if (pipelineForStage(deal.stage as string | null) !== "new_logo") return sum;
     if (!deal.expectedClosedDate || !deal.stage || !deal.value) return sum;
     const closeDate = new Date(deal.expectedClosedDate);
     if (closeDate < fiscalYearStart || closeDate > fiscalYearEnd) return sum;
     const closeRate = rateMap.get(deal.stage as string) ?? 0;
-    // Add 60-day implementation period: revenue starts 60 days after close date
-    const revenueStartDate = new Date(closeDate.getTime() + 60 * 24 * 60 * 60 * 1000);
+    // Add implementation period: revenue starts IMPLEMENTATION_LAG_DAYS after close date
+    const revenueStartDate = new Date(closeDate.getTime() + IMPLEMENTATION_LAG_DAYS * 24 * 60 * 60 * 1000);
     const remainingMs = Math.max(0, fiscalYearEnd.getTime() - revenueStartDate.getTime());
     const timingFactor = yearMs > 0 ? remainingMs / yearMs : 0;
     const contribution = Number(deal.value) * closeRate * timingFactor;
@@ -109,7 +130,9 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   const existingArr = Number(fiscalConfig?.existingArr ?? 0);
   const revenueGap = Math.max(0, revenueGoal - bookedRevenue);
   const pctOfGoal = revenueGoal > 0 ? bookedRevenue / revenueGoal : 0;
-  const pipelineCoverage = revenueGap > 0 ? pipelineTotal / revenueGap : 0;
+  // Coverage measures NEW-LOGO pipeline against the new-business gap (renewals are
+  // represented on the expectedFromExisting side, so they're excluded here).
+  const pipelineCoverage = revenueGap > 0 ? newLogoSplit.pipeline / revenueGap : 0;
 
   // Comparison snapshot
   const compareDate = new Date(today);
@@ -129,7 +152,7 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
       id: d.id,
       name: d.name,
       companyName: d.company?.name ?? null,
-      companyType: null, // not needed for dashboard drill-downs; Task 7 adds this field to DealRow
+      companyType: null, // companyType not needed for dashboard drill-downs
       value: Number(d.value),
       stage: d.stage as string | null,
       source: d.source as string | null,
@@ -144,6 +167,7 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
 
   return {
     pipelineTotal, weightedForecast, weightedForecastBreakdown, activeDealCount, avgDealSize, pipelineCoverage,
+    pipelineSplit: { newLogo: newLogoSplit, renewal: renewalSplit, combined: combinedSplit },
     revenueToDate, expectedFromExisting, bookedRevenue,
     revenueGoal, existingArr, revenueGap, pctOfGoal,
     year,

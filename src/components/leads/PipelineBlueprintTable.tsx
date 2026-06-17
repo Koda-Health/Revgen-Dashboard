@@ -1,19 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { formatCurrency, STAGE_LABELS } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
+import { STAGE_LABELS, NEW_LOGO_STAGE_ORDER, IMPLEMENTATION_LAG_DAYS } from "@/lib/stages";
 import type { BlueprintRow, SerializedAssumption, BlueprintDeal } from "@/lib/leads-data";
 import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 import { computeAdjustedForecast } from "@/lib/compute-adjusted-forecast";
 import { useScenario } from "@/lib/use-scenario";
 
-const ACTIVE_STAGES = [
-  "first_convo",
-  "opp_qual",
-  "stakeholder",
-  "verbal",
-  "contracting",
-] as const;
+const ACTIVE_STAGES = NEW_LOGO_STAGE_ORDER;
 type ActiveStage = (typeof ACTIVE_STAGES)[number];
 
 type Props = {
@@ -50,7 +45,7 @@ function computeBlueprint(
       ACTIVE_STAGES.slice(i).reduce(
         (sum, s) => sum + (assumptionMap.get(s)?.avgDaysInStage ?? 0),
         0
-      ) + 60;
+      ) + IMPLEMENTATION_LAG_DAYS;
 
     const deadlineDate = new Date(endDate);
     deadlineDate.setDate(deadlineDate.getDate() - remainingDays);

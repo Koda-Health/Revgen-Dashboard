@@ -1,18 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import pLimit from "p-limit";
+import { attioStageToSlug, WON_STAGES, LOST_STAGES } from "@/lib/stages";
 
 const ATTIO_BASE = "https://api.attio.com/v2";
 const ATTIO_KEY = process.env.ATTIO_API_KEY;
-
-const STAGE_MAP: Record<string, string> = {
-  "First Conversation": "first_convo",
-  "Opp Qualification":  "opp_qual",
-  "Stakeholder Buy-In": "stakeholder",
-  "Verbal Commit":      "verbal",
-  "Contracting":        "contracting",
-  "Closed-Won":         "closed_won",
-  "Lost":               "lost",
-};
 
 type HistoricEntry = {
   active_from: string | null;
@@ -78,11 +69,11 @@ async function buildDealSnapshot(
 
   const stageEntry = valueAtDate(stageHistory, targetDate);
   const stageRaw = extractTitle(stageEntry);
-  const stage = stageRaw ? (STAGE_MAP[stageRaw] ?? null) : null;
+  const stage = attioStageToSlug(stageRaw);
 
   let status: "active" | "won" | "lost" | "stalled" | null = null;
-  if (stage === "closed_won") status = "won";
-  else if (stage === "lost") status = "lost";
+  if (stage && WON_STAGES.has(stage)) status = "won";
+  else if (stage && LOST_STAGES.has(stage)) status = "lost";
   else if (stage) status = "active";
 
   return { dealId: deal.id, name: deal.name, companyId: deal.companyId, value: deal.value, stage, status };

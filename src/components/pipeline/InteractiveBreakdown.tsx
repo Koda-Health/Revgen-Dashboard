@@ -2,7 +2,8 @@
 
 import { useState, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { formatCurrency, STAGE_LABELS, SOURCE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
+import { formatCurrency, SOURCE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/stages";
 import { Modal } from "@/components/ui/Modal";
 import { DealTable } from "@/components/ui/DealTable";
 import { ExportButton } from "@/components/ui/ExportButton";

@@ -3,22 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
-import {
-  LayoutDashboard,
-  GitBranch,
-  Users,
-  BarChart2,
-  Database,
-  Settings,
-} from "lucide-react";
+import { LayoutDashboard, GitBranch, RefreshCw, Users, BarChart2, Database, Settings } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/",         label: "Dashboard",    icon: LayoutDashboard, roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
-  { href: "/pipeline", label: "Pipeline",     icon: GitBranch,       roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
-  { href: "/leads",    label: "Leads",        icon: Users,           roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
-  { href: "/analyzer", label: "Analyzer",     icon: BarChart2,       roles: ["FINANCE", "LEADERSHIP", "REVGEN"] },
-  { href: "/sources",  label: "Data Sources", icon: Database,        roles: ["FINANCE"] },
-  { href: "/settings", label: "Settings",     icon: Settings,        roles: ["FINANCE"] },
+  { href: "/",          label: "Dashboard",      icon: LayoutDashboard, roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
+  { href: "/pipeline",  label: "New Logo Deals", icon: GitBranch,       roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
+  { href: "/renewals",  label: "Renewal Deals",  icon: RefreshCw,       roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
+  { href: "/leads",     label: "Leads",          icon: Users,           roles: ["FINANCE", "LEADERSHIP", "REVGEN", "OTHER"] },
+  { href: "/analyzer",  label: "Analyzer",       icon: BarChart2,       roles: ["FINANCE", "LEADERSHIP", "REVGEN"] },
+  { href: "/sources",   label: "Data Sources",   icon: Database,        roles: ["FINANCE"] },
+  { href: "/settings",  label: "Settings",       icon: Settings,        roles: ["FINANCE"] },
 ] as const;
 
 interface SidebarProps {

@@ -41,6 +41,7 @@ export default async function SettingsPage() {
 
   const serializedAssumptions = assumptions.map((a) => ({
     stage: a.stage as string,
+    pipeline: a.pipeline as "new_logo" | "renewal",
     overallCloseRate: a.overallCloseRate,
     closeRateOverride: a.closeRateOverride,
     conversionToNext: a.conversionToNext,
