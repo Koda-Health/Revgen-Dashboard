@@ -1,6 +1,6 @@
 // src/lib/cohort-analysis.ts
 import { prisma } from "@/lib/prisma";
-import { NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER } from "@/lib/stages";
+import { NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER, WON_STAGES, LOST_STAGES } from "@/lib/stages";
 
 // Monotonic funnel rank used to classify advanced/held/regressed across two snapshots.
 // Covers new + renewal slugs AND deprecated OLD slugs (historical rows / cross-boundary
@@ -101,7 +101,7 @@ export async function getCohortAnalysis(
   for (const d of cohortDeals) allDealIds.add(d.dealId);
   for (const d of bPipelineDeals) allDealIds.add(d.dealId);
   for (const d of manifestB.deals) {
-    if ((d.stage === "closed_won" || d.stage === "lost") && aPipelineIds.has(d.dealId)) {
+    if ((WON_STAGES.has(d.stage ?? "") || LOST_STAGES.has(d.stage ?? "")) && aPipelineIds.has(d.dealId)) {
       allDealIds.add(d.dealId);
     }
   }
@@ -160,11 +160,11 @@ export async function getCohortAnalysis(
       counts.not_found.deals.push(bd);
       continue;
     }
-    if (dealB.stage === "closed_won") {
+    if (WON_STAGES.has(dealB.stage ?? "")) {
       counts.closed_won.count += 1;
       counts.closed_won.value += v;
       counts.closed_won.deals.push(bd);
-    } else if (dealB.stage === "lost") {
+    } else if (LOST_STAGES.has(dealB.stage ?? "")) {
       counts.closed_lost.count += 1;
       counts.closed_lost.value += v;
       counts.closed_lost.deals.push(bd);
@@ -195,8 +195,8 @@ export async function getCohortAnalysis(
 
   // Flow metrics
   const newDealsRaw = bPipelineDeals.filter((d) => !aPipelineIds.has(d.dealId));
-  const wonDealsRaw = manifestB.deals.filter((d) => d.stage === "closed_won" && aPipelineIds.has(d.dealId));
-  const lostDealsRaw = manifestB.deals.filter((d) => d.stage === "lost" && aPipelineIds.has(d.dealId));
+  const wonDealsRaw = manifestB.deals.filter((d) => WON_STAGES.has(d.stage ?? "") && aPipelineIds.has(d.dealId));
+  const lostDealsRaw = manifestB.deals.filter((d) => LOST_STAGES.has(d.stage ?? "") && aPipelineIds.has(d.dealId));
 
   const aTotal = cohortDeals.reduce((s, d) => s + Number(d.value ?? 0), 0);
   const bTotal = bPipelineDeals.reduce((s, d) => s + Number(d.value ?? 0), 0);
