@@ -1,8 +1,26 @@
 // src/lib/cohort-analysis.ts
 import { prisma } from "@/lib/prisma";
+import { NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER } from "@/lib/stages";
 
+// Monotonic funnel rank used to classify advanced/held/regressed across two snapshots.
+// Covers new + renewal slugs AND deprecated OLD slugs (historical rows / cross-boundary
+// comparisons). Terminals (won/lost) are also special-cased before this map is consulted.
 const STAGE_ORDER: Record<string, number> = {
-  first_convo: 0, opp_qual: 1, stakeholder: 2, verbal: 3, contracting: 4, closed_won: 5, lost: -1,
+  // New-logo funnel (0..9)
+  ...Object.fromEntries(NEW_LOGO_STAGE_ORDER.map((s, i) => [s, i])),
+  // Renewal funnel on its own band (10..15); renewal_at_risk sits low within renewals
+  ...Object.fromEntries(RENEWAL_CHAIN_ORDER.map((s, i) => [s, 10 + i])),
+  renewal_at_risk: 10,
+  // Deprecated OLD slugs mapped to approximate new-funnel positions (old->new migration):
+  opp_qual: 2,      // ~ stakeholder_meeting_set/complete/building_business_case
+  stakeholder: 5,   // ~ proposal_sent/internal_review (old "Stakeholder Buy-In")
+  verbal: 6,        // ~ verbal_commit
+  contracting: 8,   // ~ contract_sent/under_negotiation/in_signatures
+  // Terminals
+  closed_won: 100,
+  renewal_renewed: 100,
+  lost: -1,
+  renewal_churn_lost: -1,
 };
 
 export type BucketDeal = {

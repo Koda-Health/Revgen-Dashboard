@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { STAGE_LABELS, formatPct } from "@/lib/format";
+import { formatPct } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/stages";
 import { ExportButton } from "@/components/ui/ExportButton";
 import type { AssumptionRow, SnapshotConversionRow } from "@/lib/assumptions-analysis";
 
