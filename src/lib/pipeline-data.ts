@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { weightedForecast } from "@/lib/calculations";
 import type { DealRow } from "@/components/ui/DealTable";
+import {
+  type Pipeline, NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER, RENEWAL_AT_RISK,
+  RENEWAL_LOST, pipelineForStage,
+} from "@/lib/stages";
 
 import type { BreakdownEntry } from "@/lib/format";
 export type { BreakdownEntry } from "@/lib/format";
 
 export type PipelineData = {
+  pipeline: Pipeline;
   // KPIs
   pipelineTotal: number;
   activeDealCount: number;
@@ -13,6 +18,9 @@ export type PipelineData = {
   weightedForecast: number;
   winRateTtm: number;
   avgSalesCycleDays: number;
+  // Renewal-specific KPIs (0 for new_logo, whose stages won't be present)
+  atRiskArr: number;
+  churnedCount: number;
   // Breakdowns for 2×2 bar charts
   byStage: BreakdownEntry[];
   bySource: BreakdownEntry[];
@@ -24,7 +32,10 @@ export type PipelineData = {
   stageAssumptions: { stage: string; overallCloseRate: number }[];
 };
 
-const STAGE_SORT = ["first_convo", "opp_qual", "stakeholder", "verbal", "contracting"];
+const STAGE_SORT_BY_PIPELINE: Record<Pipeline, string[]> = {
+  new_logo: [...NEW_LOGO_STAGE_ORDER],
+  renewal: [...RENEWAL_CHAIN_ORDER, RENEWAL_AT_RISK],
+};
 
 function toEntries(
   map: Record<string, { value: number; count: number }>
@@ -35,13 +46,14 @@ function toEntries(
 }
 
 function toStageEntries(
-  map: Record<string, { value: number; count: number }>
+  map: Record<string, { value: number; count: number }>,
+  stageSort: string[]
 ): BreakdownEntry[] {
   return Object.entries(map)
     .map(([key, v]) => ({ key, ...v }))
     .sort((a, b) => {
-      const ai = STAGE_SORT.indexOf(a.key);
-      const bi = STAGE_SORT.indexOf(b.key);
+      const ai = stageSort.indexOf(a.key);
+      const bi = stageSort.indexOf(b.key);
       if (ai === -1 && bi === -1) return 0;
       if (ai === -1) return 1;
       if (bi === -1) return -1;
@@ -49,7 +61,7 @@ function toStageEntries(
     });
 }
 
-export async function getPipelineData(): Promise<PipelineData> {
+export async function getPipelineData(pipeline: Pipeline = "new_logo"): Promise<PipelineData> {
   const today = new Date();
   const ttmStart = new Date(today);
   ttmStart.setFullYear(ttmStart.getFullYear() - 1);
@@ -67,10 +79,22 @@ export async function getPipelineData(): Promise<PipelineData> {
     prisma.stageAssumption.findMany(),
   ]);
 
-  const activeDeals = deals.filter((d) => d.status === "active" || d.status === "stalled");
+  const pipelineDeals = deals.filter(
+    (d) => pipelineForStage(d.stage as string | null) === pipeline
+  );
+
+  const activeDeals = pipelineDeals.filter((d) => d.status === "active" || d.status === "stalled");
   const pipelineTotal = activeDeals.reduce((s, d) => s + Number(d.value ?? 0), 0);
   const activeDealCount = activeDeals.length;
   const avgDealSize = activeDealCount > 0 ? pipelineTotal / activeDealCount : 0;
+
+  // Renewal-specific KPIs. At-risk deals are still active, so draw from
+  // activeDeals; churned/lost deals aren't active, so churnedCount uses
+  // pipelineDeals.
+  const atRiskArr = activeDeals
+    .filter((d) => d.stage === RENEWAL_AT_RISK)
+    .reduce((s, d) => s + Number(d.value ?? 0), 0);
+  const churnedCount = pipelineDeals.filter((d) => d.stage === RENEWAL_LOST).length;
 
   const forecast = weightedForecast(
     activeDeals.map((d) => ({ value: d.value, stage: d.stage, status: "active" as const })),
@@ -78,7 +102,7 @@ export async function getPipelineData(): Promise<PipelineData> {
   );
 
   // Win rate TTM
-  const ttmClosed = deals.filter((d) => {
+  const ttmClosed = pipelineDeals.filter((d) => {
     const closeDate = d.closedWonDate ?? d.closedLostDate;
     return closeDate && new Date(closeDate) >= ttmStart;
   });
@@ -89,7 +113,7 @@ export async function getPipelineData(): Promise<PipelineData> {
   // Skip records where the manual close_date predates the stage-history
   // First Conversation entry — that's data hygiene noise (backfilled close_date
   // or a re-opened deal), not a real negative-length sale.
-  const wonCycles = deals.flatMap((d) => {
+  const wonCycles = pipelineDeals.flatMap((d) => {
     if (d.status !== "won" || !d.firstConvoDate || !d.closedWonDate) return [];
     if (new Date(d.closedWonDate) < ttmStart) return [];
     const days =
@@ -150,9 +174,11 @@ export async function getPipelineData(): Promise<PipelineData> {
   }));
 
   return {
+    pipeline,
     pipelineTotal, activeDealCount, avgDealSize, weightedForecast: forecast,
     winRateTtm, avgSalesCycleDays,
-    byStage: toStageEntries(byStageMap),
+    atRiskArr, churnedCount,
+    byStage: toStageEntries(byStageMap, STAGE_SORT_BY_PIPELINE[pipeline]),
     bySource: toEntries(bySourceMap),
     byCompanyType: toEntries(byCompanyTypeMap),
     byDealType: toEntries(byDealTypeMap),

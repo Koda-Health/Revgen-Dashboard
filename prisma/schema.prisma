@@ -79,13 +79,39 @@ model User {
 // ─── CRM Entities ─────────────────────────────────────────────────────────────
 
 enum DealStage {
+  // New-logo pipeline
   first_convo
+  stakeholder_meeting_set
+  stakeholder_meeting_complete
+  building_business_case
+  proposal_sent
+  internal_review
+  verbal_commit
+  contract_sent
+  contract_under_negotiation
+  contract_in_signatures
+  closed_won
+  lost
+  // Renewal pipeline
+  renewal_opportunity_identified
+  renewal_value_meeting_review
+  renewal_proposal_next_year
+  renewal_at_risk
+  renewal_negotiating
+  renewal_verbal_commit
+  renewal_contracting
+  renewal_renewed
+  renewal_churn_lost
+  // Deprecated (retained for historical rows; never written after re-sync)
   opp_qual
   stakeholder
   verbal
   contracting
-  closed_won
-  lost
+}
+
+enum Pipeline {
+  new_logo
+  renewal
 }
 
 enum DealSource {
@@ -284,8 +310,9 @@ model ActualRevenueEntry {
 
 model StageAssumption {
   stage             DealStage @id
-  overallCloseRate  Float // materialized effective rate: override ?? derived (recomputed on save)
-  closeRateOverride Float? // optional manual pin; when null, overallCloseRate is derived from conversion rates
+  pipeline          Pipeline  @default(new_logo)
+  overallCloseRate  Float
+  closeRateOverride Float?
   conversionToNext  Float
   avgDaysInStage    Int
   updatedAt         DateTime  @updatedAt

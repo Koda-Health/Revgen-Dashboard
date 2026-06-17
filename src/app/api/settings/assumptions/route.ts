@@ -3,7 +3,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { DealStage } from "@prisma/client";
-import { deriveCloseRates, effectiveCloseRate, ACTIVE_STAGE_ORDER } from "@/lib/close-rate";
+import { deriveCloseRates, effectiveCloseRate } from "@/lib/close-rate";
+import {
+  NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER, RENEWAL_AT_RISK, STAGE_LABELS,
+} from "@/lib/stages";
+
+const VALID_STAGES = new Set<string>(Object.keys(STAGE_LABELS));
+// Stages whose close rate is funnel-derived (chain members only — At Risk excluded).
+const CHAIN_STAGES = new Set<string>([...NEW_LOGO_STAGE_ORDER, ...RENEWAL_CHAIN_ORDER]);
 
 export async function GET() {
   const session = await auth();
@@ -26,8 +33,6 @@ type AssumptionUpdate = {
   closeRateOverride?: number | null;
 };
 
-const ACTIVE_STAGES = new Set<string>(ACTIVE_STAGE_ORDER);
-
 export async function PATCH(req: Request) {
   const session = await auth();
   if (!session || session.user.role !== "FINANCE") {
@@ -40,8 +45,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "updates array is required" }, { status: 400 });
   }
 
-  const VALID_STAGES = ["first_convo", "opp_qual", "stakeholder", "verbal", "contracting", "closed_won", "lost"];
-  if (updates.some((u) => !VALID_STAGES.includes(u.stage as string))) {
+  if (updates.some((u) => !VALID_STAGES.has(u.stage as string))) {
     return NextResponse.json({ error: "Invalid stage value" }, { status: 400 });
   }
 
@@ -54,30 +58,35 @@ export async function PATCH(req: Request) {
   });
   const updateMap = new Map(updates.map((u) => [u.stage as string, u.conversionToNext]));
   const existingMap = new Map(existing.map((e) => [e.stage as string, e.conversionToNext]));
-  const derived = deriveCloseRates(
-    ACTIVE_STAGE_ORDER.map((stage) => ({
-      stage,
-      conversionToNext: updateMap.get(stage) ?? existingMap.get(stage) ?? 0,
-    })),
-  );
+  const convFor = (stage: string) => updateMap.get(stage) ?? existingMap.get(stage) ?? 0;
+
+  // Derive each pipeline's chain independently, then merge.
+  const derived = new Map<string, number>([
+    ...Array.from(deriveCloseRates(NEW_LOGO_STAGE_ORDER.map((s) => ({ stage: s, conversionToNext: convFor(s) })), NEW_LOGO_STAGE_ORDER)),
+    ...Array.from(deriveCloseRates(RENEWAL_CHAIN_ORDER.map((s) => ({ stage: s, conversionToNext: convFor(s) })), RENEWAL_CHAIN_ORDER)),
+  ]);
 
   await prisma.$transaction(async (tx) => {
     await Promise.all(
       updates.map((u) => {
-        const isActive = ACTIVE_STAGES.has(u.stage as string);
+        const stage = u.stage as string;
         const override = u.closeRateOverride ?? null;
+        const isChain = CHAIN_STAGES.has(stage);
+        const isAtRisk = stage === RENEWAL_AT_RISK;
+        // Chain stages: effective = override ?? derived. At Risk: override is the rate.
+        const overall = isAtRisk
+          ? (override ?? 0)
+          : isChain
+            ? effectiveCloseRate(derived.get(stage) ?? 0, override)
+            : 0;
         return tx.stageAssumption.update({
           where: { stage: u.stage },
           data: {
             conversionToNext: u.conversionToNext,
             avgDaysInStage: u.avgDaysInStage,
             updatedById: session.user.id,
-            // Only active stages participate in the funnel close-rate model.
-            ...(isActive
-              ? {
-                  closeRateOverride: override,
-                  overallCloseRate: effectiveCloseRate(derived.get(u.stage as string) ?? 0, override),
-                }
+            ...(isChain || isAtRisk
+              ? { closeRateOverride: override, overallCloseRate: overall }
               : {}),
           },
         });

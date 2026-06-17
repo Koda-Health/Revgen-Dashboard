@@ -1,50 +1,34 @@
 // src/lib/close-rate.ts
-// Pure utility — no DB imports, safe to use in client components.
-//
-// The per-stage "overall close rate" is the probability a deal at that stage
-// eventually reaches Closed Won. It is the cumulative product of the per-stage
-// "conversion to next" rates from that stage through Contracting (funnel math).
+// Pure utility — no DB imports, safe in client components.
+// overallCloseRate = cumulative product of conversionToNext from a stage through
+// the last stage of its pipeline chain. The renewal "At Risk" stage is NOT part
+// of any chain; its rate comes solely from closeRateOverride.
 
-// Active pipeline stages, in funnel order. closed_won / lost do not participate.
-export const ACTIVE_STAGE_ORDER = [
-  "first_convo",
-  "opp_qual",
-  "stakeholder",
-  "verbal",
-  "contracting",
-] as const;
+import { NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER } from "@/lib/stages";
 
-export type ActiveStage = (typeof ACTIVE_STAGE_ORDER)[number];
+export { NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER };
 
 /**
- * Derive each active stage's overall close rate from the per-stage conversion
- * rates. closeRate[stage_i] = product of conversionToNext[stage_j] for j >= i
- * (through the final active stage).
- *
- * Missing conversion rates are treated as 0. Returns a Map keyed by stage slug;
- * only active stages are included.
+ * Derive each chain stage's overall close rate from per-stage conversion rates.
+ * closeRate[i] = product of conversionToNext[j] for j >= i (through chain end).
+ * `order` is the funnel chain for one pipeline. Missing rates treated as 0.
  */
 export function deriveCloseRates(
   rows: { stage: string; conversionToNext: number }[],
+  order: readonly string[],
 ): Map<string, number> {
   const convMap = new Map(rows.map((r) => [r.stage, r.conversionToNext]));
   const result = new Map<string, number>();
-
-  for (let i = 0; i < ACTIVE_STAGE_ORDER.length; i++) {
+  for (let i = 0; i < order.length; i++) {
     let product = 1;
-    for (let j = i; j < ACTIVE_STAGE_ORDER.length; j++) {
-      product *= convMap.get(ACTIVE_STAGE_ORDER[j]) ?? 0;
+    for (let j = i; j < order.length; j++) {
+      product *= convMap.get(order[j]) ?? 0;
     }
-    result.set(ACTIVE_STAGE_ORDER[i], product);
+    result.set(order[i], product);
   }
-
   return result;
 }
 
-/**
- * Effective close rate for a stage: the manual override if one is set,
- * otherwise the derived value.
- */
 export function effectiveCloseRate(
   derived: number,
   override: number | null | undefined,

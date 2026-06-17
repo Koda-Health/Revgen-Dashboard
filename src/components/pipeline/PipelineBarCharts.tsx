@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PipelineBarChart } from "@/components/pipeline/PipelineBarChart";
 import { Modal } from "@/components/ui/Modal";
 import { DealTable } from "@/components/ui/DealTable";
-import { STAGE_LABELS, SOURCE_LABELS, SALES_TYPE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
+import { SOURCE_LABELS, SALES_TYPE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/stages";
 import type { PipelineData } from "@/lib/pipeline-data";
 import type { DealRow } from "@/components/ui/DealTable";
 

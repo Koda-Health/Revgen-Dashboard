@@ -6,6 +6,7 @@ import { DashboardKpiStrip } from "@/components/dashboard/DashboardKpiStrip";
 import { RevenueGoalCard } from "@/components/dashboard/RevenueGoalCard";
 import { TopDealsSection } from "@/components/dashboard/TopDealsSection";
 import { getDashboardData } from "@/lib/dashboard-data";
+import { PipelineSplitWidgets } from "@/components/dashboard/PipelineSplitWidgets";
 
 type Props = {
   searchParams: { compare?: string; year?: string };
@@ -42,6 +43,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       />
       <div id="export-content" className="p-6 space-y-8">
         <DashboardKpiStrip data={data} />
+        <PipelineSplitWidgets data={data} />
         <RevenueGoalCard data={data} />
         <TopDealsSection deals={data.topDeals} />
       </div>

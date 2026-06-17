@@ -2,18 +2,50 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { formatCurrency, formatPct } from "@/lib/format";
 import type { PipelineData } from "@/lib/pipeline-data";
 
-export function PipelineKpiStrip({ data }: { data: PipelineData }) {
+export function PipelineKpiStrip({
+  data,
+  variant = "new_logo",
+}: {
+  data: PipelineData;
+  variant?: "new_logo" | "renewal";
+}) {
+  // Shared cards (both variants).
+  const sharedCards = [
+    <KpiCard key="pipeline" label="Total Pipeline" value={formatCurrency(data.pipelineTotal)} />,
+    <KpiCard key="active" label="Active Deals" value={String(data.activeDealCount)} />,
+    <KpiCard key="avg" label="Avg Deal Size" value={formatCurrency(data.avgDealSize)} />,
+  ];
+
+  if (variant === "renewal") {
+    const renewalCards = [
+      <KpiCard key="pipeline" label="Total Pipeline" value={formatCurrency(data.pipelineTotal)} />,
+      <KpiCard key="weighted" label="Weighted Forecast" value={formatCurrency(data.weightedForecast)} />,
+      <KpiCard key="active" label="Active Deals" value={String(data.activeDealCount)} />,
+      <KpiCard
+        key="at-risk"
+        label="At-Risk ARR"
+        value={formatCurrency(data.atRiskArr)}
+        accentColor="#EE8363"
+      />,
+      <KpiCard key="churned" label="Churned" value={String(data.churnedCount)} />,
+    ];
+    return <div className="grid grid-cols-5 gap-4">{renewalCards}</div>;
+  }
+
+  const variantCards = [
+    <KpiCard key="win-rate" label="Win Rate (TTM)" value={formatPct(data.winRateTtm)} />,
+    <KpiCard
+      key="sales-cycle"
+      label="Avg Sales Cycle"
+      value={`${data.avgSalesCycleDays}d`}
+      subValue="First Convo → Close"
+    />,
+  ];
+
   return (
     <div className="grid grid-cols-5 gap-4">
-      <KpiCard label="Total Pipeline" value={formatCurrency(data.pipelineTotal)} />
-      <KpiCard label="Active Deals" value={String(data.activeDealCount)} />
-      <KpiCard label="Avg Deal Size" value={formatCurrency(data.avgDealSize)} />
-      <KpiCard label="Win Rate (TTM)" value={formatPct(data.winRateTtm)} />
-      <KpiCard
-        label="Avg Sales Cycle"
-        value={`${data.avgSalesCycleDays}d`}
-        subValue="First Convo → Close"
-      />
+      {sharedCards}
+      {variantCards}
     </div>
   );
 }
