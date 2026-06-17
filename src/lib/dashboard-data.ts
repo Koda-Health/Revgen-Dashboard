@@ -130,7 +130,9 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   const existingArr = Number(fiscalConfig?.existingArr ?? 0);
   const revenueGap = Math.max(0, revenueGoal - bookedRevenue);
   const pctOfGoal = revenueGoal > 0 ? bookedRevenue / revenueGoal : 0;
-  const pipelineCoverage = revenueGap > 0 ? pipelineTotal / revenueGap : 0;
+  // Coverage measures NEW-LOGO pipeline against the new-business gap (renewals are
+  // represented on the expectedFromExisting side, so they're excluded here).
+  const pipelineCoverage = revenueGap > 0 ? newLogoSplit.pipeline / revenueGap : 0;
 
   // Comparison snapshot
   const compareDate = new Date(today);
@@ -150,7 +152,7 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
       id: d.id,
       name: d.name,
       companyName: d.company?.name ?? null,
-      companyType: null, // not needed for dashboard drill-downs; Task 7 adds this field to DealRow
+      companyType: null, // companyType not needed for dashboard drill-downs
       value: Number(d.value),
       stage: d.stage as string | null,
       source: d.source as string | null,

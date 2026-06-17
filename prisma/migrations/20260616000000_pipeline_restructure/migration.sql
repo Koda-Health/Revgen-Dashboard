@@ -27,3 +27,6 @@ EXCEPTION WHEN duplicate_object THEN null; END $$;
 -- StageAssumption.pipeline column
 ALTER TABLE "StageAssumption"
   ADD COLUMN IF NOT EXISTS "pipeline" "Pipeline" NOT NULL DEFAULT 'new_logo';
+
+-- Backfill pipeline for any pre-existing renewal-stage assumption rows
+UPDATE "StageAssumption" SET "pipeline" = 'renewal' WHERE "stage"::text LIKE 'renewal_%';
