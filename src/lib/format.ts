@@ -17,17 +17,6 @@ export function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-/** Human-readable labels for internal slugs */
-export const STAGE_LABELS: Record<string, string> = {
-  first_convo:  "First Convo",
-  opp_qual:     "Opp Qual",
-  stakeholder:  "Stakeholder",
-  verbal:       "Verbal",
-  contracting:  "Contracting",
-  closed_won:   "Closed Won",
-  lost:         "Lost",
-};
-
 export const SOURCE_LABELS: Record<string, string> = {
   conference:      "Conference",
   referral:        "Referral",
