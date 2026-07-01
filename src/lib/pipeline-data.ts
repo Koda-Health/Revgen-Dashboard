@@ -5,6 +5,7 @@ import {
   type Pipeline, NEW_LOGO_STAGE_ORDER, RENEWAL_CHAIN_ORDER, RENEWAL_AT_RISK,
   RENEWAL_LOST, pipelineForStage,
 } from "@/lib/stages";
+import { computePaceStatus } from "@/lib/stage-pace";
 
 import type { BreakdownEntry } from "@/lib/format";
 export type { BreakdownEntry } from "@/lib/format";
@@ -78,6 +79,8 @@ export async function getPipelineData(pipeline: Pipeline = "new_logo"): Promise<
     }),
     prisma.stageAssumption.findMany(),
   ]);
+
+  const avgDaysMap = new Map(assumptions.map((a) => [a.stage as string, a.avgDaysInStage]));
 
   const pipelineDeals = deals.filter(
     (d) => pipelineForStage(d.stage as string | null) === pipeline
@@ -156,22 +159,26 @@ export async function getPipelineData(pipeline: Pipeline = "new_logo"): Promise<
   }
 
   // Serialize active deals for client components
-  const activeDealRows: DealRow[] = activeDeals.map((d) => ({
-    id: d.id,
-    name: d.name,
-    companyName: d.company?.name ?? null,
-    companyType: (d.company?.salesType as string) ?? null,
-    value: d.value != null ? Number(d.value) : null,
-    stage: d.stage as string | null,
-    source: d.source as string | null,
-    typeOfDeal: d.typeOfDeal as string | null,
-    status: d.status as string,
-    daysInStage: d.stageEnteredAt
+  const activeDealRows: DealRow[] = activeDeals.map((d) => {
+    const daysInStage = d.stageEnteredAt
       ? Math.floor((today.getTime() - new Date(d.stageEnteredAt).getTime()) / 86400000)
-      : null,
-    firstConvoDate: d.firstConvoDate?.toISOString() ?? null,
-    expectedClosedDate: d.expectedClosedDate?.toISOString() ?? null,
-  }));
+      : null;
+    return {
+      id: d.id,
+      name: d.name,
+      companyName: d.company?.name ?? null,
+      companyType: (d.company?.salesType as string) ?? null,
+      value: d.value != null ? Number(d.value) : null,
+      stage: d.stage as string | null,
+      source: d.source as string | null,
+      typeOfDeal: d.typeOfDeal as string | null,
+      status: d.status as string,
+      daysInStage,
+      paceStatus: computePaceStatus(daysInStage, avgDaysMap.get(d.stage as string)),
+      firstConvoDate: d.firstConvoDate?.toISOString() ?? null,
+      expectedClosedDate: d.expectedClosedDate?.toISOString() ?? null,
+    };
+  });
 
   return {
     pipeline,

@@ -1,4 +1,5 @@
 import { STAGE_LABELS } from "@/lib/stages";
+import { PACE_LABELS, type PaceStatus } from "@/lib/stage-pace";
 
 const STAGE_STYLES: Record<string, string> = {
   // --- Legacy / old-slug stages (kept for historical rows) ---
@@ -17,7 +18,7 @@ const STAGE_STYLES: Record<string, string> = {
   proposal_sent:          "bg-violet-50 text-violet-700",
   internal_review:        "bg-purple-50 text-purple-700",
 
-  // --- New-logo funnel: late (amber → emerald progressing to green) ---
+  // --- New-logo funnel: late (amber -> emerald progressing to green) ---
   verbal_commit:              "bg-amber-50 text-amber-700",
   contract_sent:              "bg-yellow-50 text-yellow-700",
   contract_under_negotiation: "bg-lime-50 text-lime-700",
@@ -46,14 +47,31 @@ const STAGE_STYLES: Record<string, string> = {
   won:          "bg-green-100 text-green-800",
 };
 
-type Props = { value: string; type?: "stage" | "status" };
+// Pace-status badge styles (SP1). Keyed by PaceStatus slug.
+const PACE_STYLES: Record<PaceStatus, string> = {
+  on_track:     "bg-green-100 text-green-800",
+  watch:        "bg-amber-50 text-amber-700",
+  stalled:      "bg-rose-50 text-rose-700",
+  no_benchmark: "bg-slate-100 text-slate-600",
+};
+
+type Props = { value: string; type?: "stage" | "status" | "pace" };
 
 export function StagePill({ value, type = "stage" }: Props) {
-  const style = STAGE_STYLES[value] ?? "bg-slate-100 text-slate-600";
-  const label =
-    type === "stage"
-      ? (STAGE_LABELS[value] ?? value)
-      : value.charAt(0).toUpperCase() + value.slice(1);
+  let style: string;
+  let label: string;
+
+  if (type === "pace") {
+    style = PACE_STYLES[value as PaceStatus] ?? "bg-slate-100 text-slate-600";
+    label = PACE_LABELS[value as PaceStatus] ?? value;
+  } else if (type === "status") {
+    style = STAGE_STYLES[value] ?? "bg-slate-100 text-slate-600";
+    label = value.charAt(0).toUpperCase() + value.slice(1);
+  } else {
+    style = STAGE_STYLES[value] ?? "bg-slate-100 text-slate-600";
+    label = STAGE_LABELS[value] ?? value;
+  }
+
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-tight ${style}`}>
       {label}

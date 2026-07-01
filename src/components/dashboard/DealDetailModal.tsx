@@ -40,6 +40,9 @@ export function DealDetailModal({ deal, onClose }: Props) {
           <Field label="Days in Stage">
             {deal.daysInStage != null ? `${deal.daysInStage}d` : "—"}
           </Field>
+          <Field label="Pace">
+            <StagePill value={deal.paceStatus} type="pace" />
+          </Field>
           <Field label="First Convo">
             {deal.firstConvoDate ? new Date(deal.firstConvoDate).toLocaleDateString() : "—"}
           </Field>

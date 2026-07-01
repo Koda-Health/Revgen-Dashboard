@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { pipelineForStage, IMPLEMENTATION_LAG_DAYS } from "@/lib/stages";
+import { computePaceStatus } from "@/lib/stage-pace";
 import type { DealRow } from "@/components/ui/DealTable";
 import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 export type { BreakdownEntry } from "@/lib/format";
@@ -78,6 +79,7 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   // timingFactor = fraction of year remaining after close date (e.g., Aug close = ~5/12 months left)
   const yearMs = fiscalYearEnd.getTime() - fiscalYearStart.getTime();
   const rateMap = new Map(assumptions.map((a) => [a.stage as string, a.overallCloseRate]));
+  const avgDaysMap = new Map(assumptions.map((a) => [a.stage as string, a.avgDaysInStage]));
 
   const splitAgg = (predicate: (stage: string | null) => boolean) => {
     const ds = activeDeals.filter((d) => predicate(d.stage as string | null));
@@ -148,22 +150,26 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   const topDeals: DealRow[] = activeDeals
     .filter((d) => Number(d.value ?? 0) > 0)
     .slice(0, 5)
-    .map((d) => ({
-      id: d.id,
-      name: d.name,
-      companyName: d.company?.name ?? null,
-      companyType: null, // companyType not needed for dashboard drill-downs
-      value: Number(d.value),
-      stage: d.stage as string | null,
-      source: d.source as string | null,
-      typeOfDeal: d.typeOfDeal as string | null,
-      status: d.status as string,
-      daysInStage: d.stageEnteredAt
+    .map((d) => {
+      const daysInStage = d.stageEnteredAt
         ? Math.floor((today.getTime() - new Date(d.stageEnteredAt).getTime()) / 86400000)
-        : null,
-      firstConvoDate: d.firstConvoDate?.toISOString() ?? null,
-      expectedClosedDate: d.expectedClosedDate?.toISOString() ?? null,
-    }));
+        : null;
+      return {
+        id: d.id,
+        name: d.name,
+        companyName: d.company?.name ?? null,
+        companyType: null, // companyType not needed for dashboard drill-downs
+        value: Number(d.value),
+        stage: d.stage as string | null,
+        source: d.source as string | null,
+        typeOfDeal: d.typeOfDeal as string | null,
+        status: d.status as string,
+        daysInStage,
+        paceStatus: computePaceStatus(daysInStage, avgDaysMap.get(d.stage as string)),
+        firstConvoDate: d.firstConvoDate?.toISOString() ?? null,
+        expectedClosedDate: d.expectedClosedDate?.toISOString() ?? null,
+      };
+    });
 
   return {
     pipelineTotal, weightedForecast, weightedForecastBreakdown, activeDealCount, avgDealSize, pipelineCoverage,
