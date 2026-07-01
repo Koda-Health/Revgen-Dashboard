@@ -4,7 +4,7 @@ import { ComparisonSelector } from "@/components/dashboard/ComparisonSelector";
 import { YearSelector } from "@/components/dashboard/YearSelector";
 import { DashboardKpiStrip } from "@/components/dashboard/DashboardKpiStrip";
 import { RevenueGoalCard } from "@/components/dashboard/RevenueGoalCard";
-import { TopDealsSection } from "@/components/dashboard/TopDealsSection";
+import { RevenueWaterfall } from "@/components/dashboard/RevenueWaterfall";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { PipelineSplitWidgets } from "@/components/dashboard/PipelineSplitWidgets";
 
@@ -45,7 +45,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         <DashboardKpiStrip data={data} />
         <PipelineSplitWidgets data={data} />
         <RevenueGoalCard data={data} />
-        <TopDealsSection deals={data.topDeals} />
+        <RevenueWaterfall data={data.waterfallByStage} />
       </div>
     </div>
   );

@@ -93,37 +93,37 @@ export function RevenueGoalCard({ data }: Props) {
         </div>
       </div>
 
-      {/* Metrics row */}
-      <div className="flex flex-wrap gap-6 mb-4">
-        <div>
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Revenue Goal</p>
-          <p className="text-2xl font-bold text-navy">{formatCurrency(displayGoal)}</p>
+      {/* Metrics grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-slate-100 rounded-card overflow-hidden border border-slate-100 mb-5">
+        <div className="bg-white px-4 py-3.5">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Revenue Goal</p>
+          <p className="text-[1.6rem] leading-none font-extrabold text-navy tabular-nums">{formatCurrency(displayGoal)}</p>
           {goalOverride !== "" && (
-            <p className="text-[11px] text-amber-600 mt-0.5">override active</p>
+            <p className="text-[10px] text-amber-600 mt-1">override active</p>
           )}
         </div>
-        <div>
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Booked Revenue</p>
-          <p className="text-2xl font-bold text-navy">{formatCurrency(displayBooked)}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">
-            {formatCurrency(data.revenueToDate)} recognized + {formatCurrency(displayExpected)} expected from existing
+        <div className="bg-white px-4 py-3.5">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Booked Revenue</p>
+          <p className="text-[1.6rem] leading-none font-extrabold text-navy tabular-nums">{formatCurrency(displayBooked)}</p>
+          <p className="text-[10px] text-slate-400 mt-1.5 leading-snug">
+            {formatCurrency(data.revenueToDate)} recognized + {formatCurrency(displayExpected)} expected
           </p>
         </div>
-        <div>
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Weighted Forecast</p>
-          <p className="text-2xl font-bold text-teal">{formatCurrency(adjustedWeightedForecast)}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">in-year pipeline contribution</p>
+        <div className="bg-white px-4 py-3.5">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Weighted Forecast</p>
+          <p className="text-[1.6rem] leading-none font-extrabold text-teal tabular-nums">{formatCurrency(adjustedWeightedForecast)}</p>
+          <p className="text-[10px] text-slate-400 mt-1.5">in-year pipeline contribution</p>
         </div>
-        <div>
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Revenue Gap</p>
-          <p className="text-2xl font-bold text-coral">{formatCurrency(displayGap)}</p>
-          <p className="text-[10px] mt-0.5" style={{ color: includeWeighted ? "#34B3D4" : "#9CA3AF" }}>
+        <div className="bg-white px-4 py-3.5">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Revenue Gap</p>
+          <p className="text-[1.6rem] leading-none font-extrabold text-coral tabular-nums">{formatCurrency(displayGap)}</p>
+          <p className="text-[10px] mt-1.5" style={{ color: includeWeighted ? "#34B3D4" : "#9CA3AF" }}>
             {includeWeighted ? "weighted pipeline included" : "weighted pipeline excluded"}
           </p>
         </div>
-        <div>
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">% of Goal</p>
-          <p className="text-2xl font-bold text-navy">{formatPct(displayPct)}</p>
+        <div className="bg-white px-4 py-3.5">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">% of Goal</p>
+          <p className="text-[1.6rem] leading-none font-extrabold text-navy tabular-nums">{formatPct(displayPct)}</p>
         </div>
       </div>
 

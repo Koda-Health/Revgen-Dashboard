@@ -1,12 +1,22 @@
 import { prisma } from "@/lib/prisma";
-import { pipelineForStage, IMPLEMENTATION_LAG_DAYS } from "@/lib/stages";
+import { pipelineForStage, IMPLEMENTATION_LAG_DAYS, NEW_LOGO_STAGE_ORDER, STAGE_LABELS } from "@/lib/stages";
 import { computePaceStatus } from "@/lib/stage-pace";
 import type { DealRow } from "@/components/ui/DealTable";
 import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 export type { BreakdownEntry } from "@/lib/format";
 export type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 
+export type WaterfallStage = {
+  stage: string;
+  label: string;
+  pipeline: number;   // active new-logo pipeline value at this stage
+  closeRate: number;  // stage overall close rate
+  weighted: number;   // pipeline * closeRate
+  cumulative: number; // running sum of weighted across stages
+};
+
 export type DashboardData = {
+  waterfallByStage: WaterfallStage[];
   // KPIs
   pipelineTotal: number;
   activeDealCount: number;
@@ -122,6 +132,28 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   }, 0);
   weightedForecastBreakdown.sort((a, b) => b.contribution - a.contribution);
 
+  // Weighted-pipeline waterfall by new-logo stage (value x close rate, untimed).
+  // Steps accumulate to total weighted new-logo pipeline; drives the dashboard chart.
+  const newLogoActiveDeals = activeDeals.filter(
+    (d) => pipelineForStage(d.stage as string | null) === "new_logo"
+  );
+  let waterfallCumulative = 0;
+  const waterfallByStage: WaterfallStage[] = NEW_LOGO_STAGE_ORDER.map((stage) => {
+    const atStage = newLogoActiveDeals.filter((d) => d.stage === stage);
+    const pipeline = atStage.reduce((s, d) => s + Number(d.value ?? 0), 0);
+    const closeRate = rateMap.get(stage) ?? 0;
+    const weighted = pipeline * closeRate;
+    waterfallCumulative += weighted;
+    return {
+      stage,
+      label: STAGE_LABELS[stage] ?? stage,
+      pipeline,
+      closeRate,
+      weighted,
+      cumulative: waterfallCumulative,
+    };
+  });
+
   // Revenue
   const revenueToDate = Number(actualRevSum._sum.amount ?? 0);
   const expectedFromExisting = Number(fiscalConfig?.expectedFromExisting ?? 0);
@@ -179,5 +211,6 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
     year,
     pipelineTotalDelta, weightedForecastDelta,
     topDeals,
+    waterfallByStage,
   };
 }
