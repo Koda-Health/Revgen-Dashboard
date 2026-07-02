@@ -14,6 +14,7 @@ export type WeightedForecastDeal = {
   stage: string;
   value: number;
   closeRate: number;
+  daysInStage: number | null;
   projectedCloseDate: string;           // ISO - computed from stage assumptions
   kodaExpectedCloseDate: string | null; // ISO - manually entered (Koda) date, if any
   timingFactor: number;                 // default (projected-date) timing factor
@@ -52,6 +53,7 @@ export type ForecastDealInput = {
   companyName: string | null;
   stage: string;
   value: number;
+  stageEnteredAt: Date | string | null;
   expectedClosedDate: Date | string | null; // manual Koda date
 };
 
@@ -115,6 +117,11 @@ export function buildWeightedForecastBreakdown(
     const timingFactor = computeTimingFactor(projected, year);
     const contribution = d.value * closeRate * timingFactor;
 
+    const enteredAt = d.stageEnteredAt ? new Date(d.stageEnteredAt) : null;
+    const daysInStage = enteredAt
+      ? Math.floor((today.getTime() - enteredAt.getTime()) / DAY_MS)
+      : null;
+
     out.push({
       id: d.id,
       name: d.name,
@@ -122,6 +129,7 @@ export function buildWeightedForecastBreakdown(
       stage: d.stage,
       value: d.value,
       closeRate,
+      daysInStage,
       projectedCloseDate: projected.toISOString(),
       kodaExpectedCloseDate: koda ? koda.toISOString() : null,
       timingFactor,

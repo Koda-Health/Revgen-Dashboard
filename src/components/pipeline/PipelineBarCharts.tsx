@@ -79,7 +79,7 @@ export function PipelineBarCharts({
         open={drillDown != null}
         onClose={() => setDrillDown(null)}
         title={drillDown?.title ?? ""}
-        width="xl"
+        width="3xl"
       >
         {drillDown && <DealTable deals={drillDown.deals} />}
       </Modal>

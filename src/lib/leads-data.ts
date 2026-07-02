@@ -101,7 +101,7 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
       where: { status: { in: ["active", "stalled"] as DealStatus[] } },
       select: {
         id: true, value: true, stage: true, source: true,
-        name: true, expectedClosedDate: true,
+        name: true, expectedClosedDate: true, stageEnteredAt: true,
         company: { select: { name: true } },
       },
     }),
@@ -309,6 +309,7 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
       companyName: deal.company?.name ?? null,
       stage: deal.stage as string,
       value: Number(deal.value ?? 0),
+      stageEnteredAt: deal.stageEnteredAt ?? null,
       expectedClosedDate: deal.expectedClosedDate ?? null,
     })),
     assumptions.map((a) => ({

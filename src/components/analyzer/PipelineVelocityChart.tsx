@@ -1,51 +1,60 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import type { Timeframe, VelocityData } from "@/lib/velocity-analysis";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import type { VelocityWindow, VelocityTrend } from "@/lib/velocity-analysis";
 
 const OVERALL_KEY = "__overall__";
-const STAGE_COLOR = "#34B3D4"; // teal
 const OVERALL_COLOR = "#11327A"; // navy
+const STAGE_PALETTE = [
+  "#34B3D4", "#EE8363", "#4BAC64", "#8B5CF6", "#F59E0B",
+  "#0EA5E9", "#EC4899", "#14B8A6", "#A16207", "#64748B",
+];
 
-const TIMEFRAMES: { key: Timeframe; label: string }[] = [
-  { key: "lifetime", label: "Lifetime" },
+const WINDOWS: { key: VelocityWindow; label: string }[] = [
   { key: "3m", label: "Trailing 3M" },
   { key: "6m", label: "Trailing 6M" },
   { key: "9m", label: "Trailing 9M" },
   { key: "12m", label: "Trailing 12M" },
+  { key: "lifetime", label: "Lifetime" },
 ];
 
-type Row = { key: string; label: string; days: number; sampleSize: number; isOverall: boolean };
+type ChartRow = { label: string } & Record<string, number | string | null>;
 
-type TooltipProps = { active?: boolean; payload?: Array<{ payload: Row }> };
-function ChartTooltip({ active, payload }: TooltipProps) {
+type VTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  payload?: Array<{ name?: string; value?: number | string; color?: string }>;
+};
+function VelocityTooltip({ active, label, payload }: VTooltipProps) {
   if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+  const rows = payload.filter((p) => p.value != null);
+  if (rows.length === 0) return null;
   return (
-    <div className="bg-white border border-slate-200 shadow-lg rounded-lg px-3 py-2 text-sm ring-1 ring-slate-100">
-      <p className="font-semibold text-navy mb-1">{d.label}</p>
-      <p className="text-teal font-medium">{d.days} days avg</p>
-      <p className="text-slate-400 text-xs">n = {d.sampleSize}</p>
+    <div className="bg-white border border-slate-200 shadow-lg rounded-lg px-3 py-2 text-xs ring-1 ring-slate-100 max-w-[240px]">
+      <p className="font-semibold text-navy mb-1">{label}</p>
+      {rows.map((p, i) => (
+        <p key={i} style={{ color: p.color }}>{p.name}: {p.value}d</p>
+      ))}
     </div>
   );
 }
 
 export function PipelineVelocityChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>("lifetime");
-  const [data, setData] = useState<VelocityData | null>(null);
+  const [window, setWindow] = useState<VelocityWindow>("3m");
+  const [data, setData] = useState<VelocityTrend | null>(null);
   const [loading, setLoading] = useState(true);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/analyzer/velocity?timeframe=${timeframe}`)
+    fetch(`/api/analyzer/velocity?window=${window}`)
       .then((r) => r.json())
-      .then((d: VelocityData) => { if (!cancelled) { setData(d); setLoading(false); } })
+      .then((d: VelocityTrend) => { if (!cancelled) { setData(d); setLoading(false); } })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [timeframe]);
+  }, [window]);
 
   function toggle(key: string) {
     setHidden((prev) => {
@@ -55,70 +64,66 @@ export function PipelineVelocityChart() {
     });
   }
 
-  // Series available (only those with data).
-  const availableStages = (data?.stages ?? []).filter((s) => s.avgDays != null);
-  const hasOverall = data?.overallCycleDays != null;
+  // Which series actually have data across the trend?
+  const overallHasData = (data?.points ?? []).some((p) => p.overallCycleDays != null);
+  const overallIsFallback = (data?.points ?? []).some((p) => p.overallIsFallback);
+  const stageSeries = (data?.stageOrder ?? []).filter((s) =>
+    (data?.points ?? []).some((p) => p.stages[s.stage] != null),
+  );
 
-  const rows: Row[] = [];
-  if (hasOverall && !hidden.has(OVERALL_KEY)) {
-    rows.push({
-      key: OVERALL_KEY,
-      label: "Overall Cycle",
-      days: data!.overallCycleDays!,
-      sampleSize: data!.overallSampleSize,
-      isOverall: true,
-    });
-  }
-  for (const s of availableStages) {
-    if (hidden.has(s.stage)) continue;
-    rows.push({ key: s.stage, label: s.label, days: s.avgDays!, sampleSize: s.sampleSize, isOverall: false });
-  }
+  const colorFor = (stage: string) => {
+    const idx = (data?.stageOrder ?? []).findIndex((s) => s.stage === stage);
+    return STAGE_PALETTE[(idx < 0 ? 0 : idx) % STAGE_PALETTE.length];
+  };
+
+  const chartData: ChartRow[] = (data?.points ?? []).map((p) => {
+    const row: ChartRow = { label: p.label, [OVERALL_KEY]: p.overallCycleDays };
+    for (const s of stageSeries) row[s.stage] = p.stages[s.stage];
+    return row;
+  });
+
+  const anySeries = overallHasData || stageSeries.length > 0;
 
   return (
     <div className="bg-white rounded-card shadow-card p-6">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Pipeline Velocity
+            Pipeline Velocity Trend
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Average days in stage (completed transitions) and overall sales cycle
+            Average days in stage over time (quarterly, {WINDOWS.find((w) => w.key === window)?.label.toLowerCase()} window)
           </p>
         </div>
-        {/* Timeframe toggle */}
         <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
-          {TIMEFRAMES.map((t) => (
+          {WINDOWS.map((w) => (
             <button
-              key={t.key}
-              onClick={() => setTimeframe(t.key)}
-              className={`px-3 py-1.5 ${timeframe === t.key ? "bg-navy text-white" : "text-slate-500 hover:bg-slate-50"} border-l first:border-l-0 border-slate-200`}
+              key={w.key}
+              onClick={() => setWindow(w.key)}
+              className={`px-3 py-1.5 border-l first:border-l-0 border-slate-200 ${window === w.key ? "bg-navy text-white" : "text-slate-500 hover:bg-slate-50"}`}
             >
-              {t.label}
+              {w.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Series toggles */}
-      {(hasOverall || availableStages.length > 0) && (
+      {anySeries && (
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {hasOverall && (
+          {overallHasData && (
             <button
               onClick={() => toggle(OVERALL_KEY)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                hidden.has(OVERALL_KEY) ? "bg-slate-100 text-slate-400" : "bg-navy/10 text-navy"
-              }`}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${hidden.has(OVERALL_KEY) ? "bg-slate-100 text-slate-400" : "bg-navy/10 text-navy"}`}
             >
-              Overall Cycle
+              {overallIsFallback ? "Overall Cycle (time in pipeline)" : "Overall Cycle"}
             </button>
           )}
-          {availableStages.map((s) => (
+          {stageSeries.map((s) => (
             <button
               key={s.stage}
               onClick={() => toggle(s.stage)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                hidden.has(s.stage) ? "bg-slate-100 text-slate-400" : "bg-teal/10 text-teal"
-              }`}
+              style={hidden.has(s.stage) ? undefined : { color: colorFor(s.stage), backgroundColor: colorFor(s.stage) + "1A" }}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${hidden.has(s.stage) ? "bg-slate-100 text-slate-400" : ""}`}
             >
               {s.label}
             </button>
@@ -128,23 +133,15 @@ export function PipelineVelocityChart() {
 
       {loading ? (
         <p className="text-sm text-slate-400 text-center py-12">Loading velocity data...</p>
-      ) : rows.length === 0 ? (
+      ) : !anySeries ? (
         <p className="text-sm text-slate-400 text-center py-12">
-          No completed stage-transition data for this timeframe yet. Run an Attio sync to populate history.
+          No stage-transition history yet. Run an Attio sync to populate it.
         </p>
       ) : (
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart data={rows} margin={{ top: 8, right: 0, left: 0, bottom: 8 }}>
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10, fill: "#64748b" }}
-              interval={0}
-              angle={-35}
-              textAnchor="end"
-              height={90}
-              axisLine={false}
-              tickLine={false}
-            />
+        <ResponsiveContainer width="100%" height={360}>
+          <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
             <YAxis
               tickFormatter={(v: number) => `${v}d`}
               tick={{ fontSize: 11, fill: "#64748b" }}
@@ -152,13 +149,33 @@ export function PipelineVelocityChart() {
               tickLine={false}
               width={44}
             />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(52,179,212,0.08)" }} />
-            <Bar dataKey="days" radius={[6, 6, 0, 0]}>
-              {rows.map((r) => (
-                <Cell key={r.key} fill={r.isOverall ? OVERALL_COLOR : STAGE_COLOR} />
-              ))}
-            </Bar>
-          </BarChart>
+            <Tooltip content={<VelocityTooltip />} />
+            {overallHasData && !hidden.has(OVERALL_KEY) && (
+              <Line
+                type="monotone"
+                dataKey={OVERALL_KEY}
+                name={overallIsFallback ? "Overall (time in pipeline)" : "Overall Cycle"}
+                stroke={OVERALL_COLOR}
+                strokeWidth={2.5}
+                dot={{ r: 3 }}
+                connectNulls
+              />
+            )}
+            {stageSeries.map((s) =>
+              hidden.has(s.stage) ? null : (
+                <Line
+                  key={s.stage}
+                  type="monotone"
+                  dataKey={s.stage}
+                  name={s.label}
+                  stroke={colorFor(s.stage)}
+                  strokeWidth={1.75}
+                  dot={{ r: 2 }}
+                  connectNulls
+                />
+              ),
+            )}
+          </LineChart>
         </ResponsiveContainer>
       )}
     </div>
