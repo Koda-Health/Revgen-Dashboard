@@ -153,9 +153,14 @@ enum DealStatus {
 }
 
 enum CompanyStage {
+  // Lead funnel (active taxonomy)
   unaware
+  outreach
   aware
   engaged
+  discovery_meeting_set
+  discovery_meeting_complete
+  // Deprecated (retained for historical rows; never written after re-sync)
   opportunity
   customer
   evangelist

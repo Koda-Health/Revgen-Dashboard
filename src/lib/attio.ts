@@ -107,9 +107,14 @@ const SOURCE_MAP: Record<string, string> = {
 };
 
 const COMPANY_STAGE_MAP: Record<string, string> = {
-  "Unaware":     "unaware",
-  "Aware":       "aware",
-  "Engaged":     "engaged",
+  // New lead-funnel taxonomy
+  "Unaware":                    "unaware",
+  "Outreach":                   "outreach",
+  "Aware":                      "aware",
+  "Engaged":                    "engaged",
+  "Discovery Meeting Set":      "discovery_meeting_set",
+  "Discovery Meeting Complete": "discovery_meeting_complete",
+  // Deprecated titles - still mapped for transition safety (map to retained enum values)
   "Opportunity": "opportunity",
   "Customer":    "customer",
   "Evangelist":  "evangelist",
