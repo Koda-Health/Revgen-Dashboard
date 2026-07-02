@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { pipelineForStage, IMPLEMENTATION_LAG_DAYS, NEW_LOGO_STAGE_ORDER, STAGE_LABELS } from "@/lib/stages";
+import { pipelineForStage, NEW_LOGO_STAGE_ORDER, STAGE_LABELS } from "@/lib/stages";
 import { computePaceStatus } from "@/lib/stage-pace";
 import type { DealRow } from "@/components/ui/DealTable";
-import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
+import { buildWeightedForecastBreakdown, type WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 export type { BreakdownEntry } from "@/lib/format";
 export type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 
@@ -87,7 +87,6 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
   // Weighted forecast (in-year only):
   // Only deals where expectedClosedDate falls within the selected fiscal year.
   // timingFactor = fraction of year remaining after close date (e.g., Aug close = ~5/12 months left)
-  const yearMs = fiscalYearEnd.getTime() - fiscalYearStart.getTime();
   const rateMap = new Map(assumptions.map((a) => [a.stage as string, a.overallCloseRate]));
   const avgDaysMap = new Map(assumptions.map((a) => [a.stage as string, a.avgDaysInStage]));
 
@@ -105,32 +104,28 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
     count: newLogoSplit.count + renewalSplit.count,
   };
 
-  const weightedForecastBreakdown: WeightedForecastDeal[] = [];
-  const weightedForecast = activeDeals.reduce((sum, deal) => {
-    if (pipelineForStage(deal.stage as string | null) !== "new_logo") return sum;
-    if (!deal.expectedClosedDate || !deal.stage || !deal.value) return sum;
-    const closeDate = new Date(deal.expectedClosedDate);
-    if (closeDate < fiscalYearStart || closeDate > fiscalYearEnd) return sum;
-    const closeRate = rateMap.get(deal.stage as string) ?? 0;
-    // Add implementation period: revenue starts IMPLEMENTATION_LAG_DAYS after close date
-    const revenueStartDate = new Date(closeDate.getTime() + IMPLEMENTATION_LAG_DAYS * 24 * 60 * 60 * 1000);
-    const remainingMs = Math.max(0, fiscalYearEnd.getTime() - revenueStartDate.getTime());
-    const timingFactor = yearMs > 0 ? remainingMs / yearMs : 0;
-    const contribution = Number(deal.value) * closeRate * timingFactor;
-    weightedForecastBreakdown.push({
-      id: deal.id,
-      name: deal.name,
-      companyName: deal.company?.name ?? null,
-      stage: deal.stage as string,
-      value: Number(deal.value),
-      closeRate,
-      expectedClosedDate: deal.expectedClosedDate.toISOString(),
-      timingFactor,
-      contribution,
-    });
-    return sum + contribution;
-  }, 0);
-  weightedForecastBreakdown.sort((a, b) => b.contribution - a.contribution);
+  // Weighted forecast breakdown (new-logo, projected-default timing). Shared builder keeps
+  // this identical to the Leads-tab computation.
+  const weightedForecastBreakdown = buildWeightedForecastBreakdown(
+    activeDeals
+      .filter((d) => pipelineForStage(d.stage as string | null) === "new_logo")
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        companyName: d.company?.name ?? null,
+        stage: d.stage as string,
+        value: Number(d.value ?? 0),
+        expectedClosedDate: d.expectedClosedDate ?? null,
+      })),
+    assumptions.map((a) => ({
+      stage: a.stage as string,
+      overallCloseRate: a.overallCloseRate,
+      avgDaysInStage: a.avgDaysInStage,
+    })),
+    year,
+    today,
+  );
+  const weightedForecast = weightedForecastBreakdown.reduce((s, d) => s + d.contribution, 0);
 
   // Weighted-pipeline waterfall by new-logo stage (value x close rate, untimed).
   // Steps accumulate to total weighted new-logo pipeline; drives the dashboard chart.

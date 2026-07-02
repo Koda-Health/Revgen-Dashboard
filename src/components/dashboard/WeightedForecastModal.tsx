@@ -72,13 +72,13 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
             label="Close Rate Modifier (%)"
             value={closeRateModifier}
             onChange={setCloseRateModifier}
-            hint="+20 raises all close rates by 20% (×1.2). −20 lowers them by 20% (×0.8)."
+            hint="+20 raises all close rates by 20% (x1.2). -20 lowers them by 20% (x0.8)."
           />
           <ModifierInput
             label="Timing Factor Modifier (%)"
             value={timingModifier}
             onChange={setTimingModifier}
-            hint="+20 delays all closes by 20%, reducing in-year contribution. −20 accelerates closes, increasing contribution."
+            hint="+20 delays all projected-timing closes by 20%, reducing in-year contribution. -20 accelerates them."
           />
           <div className="flex flex-col justify-end gap-1 ml-auto self-end">
             <div>
@@ -108,18 +108,16 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
       <p className="text-xs text-slate-500 mb-4 leading-relaxed">
         <span className="font-semibold text-navy">Formula: </span>
         Deal Value × Stage Close Rate × Timing Factor.
-        Timing Factor = months remaining after expected close + implementation period ÷ months in FY{year}.
-
-        Implementation period is assumed to be 60 days.
-        
-        Only deals with an expected close date within FY{year} are included.
-        
-        Custom close dates override the timing modifier for that deal.
+        Timing Factor = months remaining after close date + (implementation period) / months in FY{year}.
+        Implementation period is assumed to be 45 days.
+        Timing defaults to each deal's projected close date (stage-based); use the basis toggle
+        to switch a deal to its Koda Expected Close Date, or type a custom date to override.
+        Only deals projected (or Koda-expected) to close within FY{year} are included.
       </p>
 
       {deals.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-8">
-          No deals with an expected close date in FY{year}.
+          No deals projected to close in FY{year}.
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -129,7 +127,8 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
                 <th className="px-5 py-3 pr-2 w-8">Excl.</th>
                 <th className="px-5 py-3 pr-4">Deal</th>
                 <th className="px-5 py-3 pr-4">Stage</th>
-                <th className="px-5 py-3 pr-4">Exp. Close</th>
+                <th className="px-5 py-3 pr-4">Close Basis</th>
+                <th className="px-5 py-3 pr-4">Close Date</th>
                 <th className="px-5 py-3 pr-4 text-right">Value</th>
                 <th className="px-5 py-3 pr-4 text-right">Close Rate</th>
                 <th className="px-5 py-3 pr-4 text-right">Timing</th>
@@ -139,10 +138,11 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
             <tbody>
               {adjusted.map((d) => {
                 const override = dealOverrides[d.id] ?? {};
-                const origDate = d.expectedClosedDate.slice(0, 10);
+                const effectiveDate = d.effectiveCloseDate.slice(0, 10);
                 const closeRateChanged = Math.abs(d.adjustedCloseRate - d.closeRate) > 0.0001;
                 const timingChanged    = Math.abs(d.adjustedTimingFactor - d.timingFactor) > 0.0001;
                 const contribChanged   = Math.abs(d.adjustedContribution - d.contribution) > 0.01;
+                const hasKoda = d.kodaExpectedCloseDate != null;
 
                 return (
                   <tr
@@ -171,14 +171,36 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
                       {STAGE_LABELS[d.stage] ?? d.stage}
                     </td>
 
-                    {/* Expected close date — editable */}
+                    {/* Close basis toggle: Projected (default) vs Koda */}
+                    <td className="px-5 py-3 pr-4">
+                      <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-[10px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setDealOverride(d.id, { dateSource: "projected" })}
+                          className={`px-2 py-1 ${d.dateSource === "projected" && !d.hasDateOverride ? "bg-teal text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                        >
+                          Proj
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!hasKoda}
+                          onClick={() => setDealOverride(d.id, { dateSource: "koda" })}
+                          title={hasKoda ? "Use Koda Expected Close Date" : "No Koda Expected Close Date set"}
+                          className={`px-2 py-1 border-l border-slate-200 ${d.dateSource === "koda" && !d.hasDateOverride ? "bg-teal text-white" : "text-slate-500 hover:bg-slate-50"} disabled:opacity-40 disabled:hover:bg-transparent`}
+                        >
+                          Koda
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Effective close date - editable (custom override) */}
                     <td className="px-5 py-3 pr-4">
                       <input
                         type="date"
-                        value={override.dateOverride ?? origDate}
+                        value={override.dateOverride ?? effectiveDate}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setDealOverride(d.id, { dateOverride: (!val || val === origDate) ? null : val });
+                          setDealOverride(d.id, { dateOverride: (!val || val === effectiveDate) ? null : val });
                         }}
                         className={`w-32 px-1.5 py-1 text-xs border rounded-md focus:outline-none focus:ring-2 focus:ring-teal/40 ${
                           d.hasDateOverride ? "border-teal text-teal font-semibold" : "border-slate-200 text-slate-700"
@@ -186,7 +208,7 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
                       />
                     </td>
 
-                    {/* Value — editable */}
+                    {/* Value - editable */}
                     <td className="px-5 py-3 pr-4 text-right">
                       <input
                         type="number"
@@ -244,7 +266,7 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200">
-                <td colSpan={7} className="pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <td colSpan={8} className="pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   {hasChanges ? "Adjusted Weighted Forecast" : "Total Weighted Forecast"}
                 </td>
                 <td className="pt-3 text-right">

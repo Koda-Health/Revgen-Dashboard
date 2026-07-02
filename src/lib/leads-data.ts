@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { DealStatus, CompanyStage } from "@prisma/client";
 import type { BreakdownEntry } from "@/lib/format";
-import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
+import { buildWeightedForecastBreakdown, type WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 import { NEW_LOGO_STAGE_ORDER, IMPLEMENTATION_LAG_DAYS, pipelineForStage } from "@/lib/stages";
 
 const ACTIVE_STAGES = NEW_LOGO_STAGE_ORDER;
@@ -300,36 +300,24 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
     stage: d.stage as string | null,
   }));
 
-  // ── Weighted forecast breakdown (same logic as getDashboardData) ─────────────
-  const fiscalYearStart = new Date(`${year}-01-01T00:00:00`);
-  const fiscalYearEndDate = new Date(`${year}-12-31T23:59:59`);
-  const yearMs = fiscalYearEndDate.getTime() - fiscalYearStart.getTime();
-  const rateMap = new Map(assumptions.map((a) => [a.stage as string, a.overallCloseRate]));
-
-  const weightedForecastBreakdown: WeightedForecastDeal[] = [];
-  for (const deal of newLogoActive) {
-    if (!deal.expectedClosedDate || !deal.stage || !deal.value) continue;
-    const closeDate = new Date(deal.expectedClosedDate);
-    if (closeDate < fiscalYearStart || closeDate > fiscalYearEndDate) continue;
-    const closeRate = rateMap.get(deal.stage as string) ?? 0;
-    // Add implementation lag: revenue starts IMPLEMENTATION_LAG_DAYS after close date
-    const revenueStartDate = new Date(closeDate.getTime() + IMPLEMENTATION_LAG_DAYS * 24 * 60 * 60 * 1000);
-    const remainingMs = Math.max(0, fiscalYearEndDate.getTime() - revenueStartDate.getTime());
-    const timingFactor = yearMs > 0 ? remainingMs / yearMs : 0;
-    const contribution = Number(deal.value) * closeRate * timingFactor;
-    weightedForecastBreakdown.push({
+  // Weighted forecast breakdown (shared builder - identical to the Dashboard tab).
+  const weightedForecastBreakdown = buildWeightedForecastBreakdown(
+    newLogoActive.map((deal) => ({
       id: deal.id,
       name: deal.name,
       companyName: deal.company?.name ?? null,
       stage: deal.stage as string,
-      value: Number(deal.value),
-      closeRate,
-      expectedClosedDate: deal.expectedClosedDate.toISOString(),
-      timingFactor,
-      contribution,
-    });
-  }
-  weightedForecastBreakdown.sort((a, b) => b.contribution - a.contribution);
+      value: Number(deal.value ?? 0),
+      expectedClosedDate: deal.expectedClosedDate ?? null,
+    })),
+    assumptions.map((a) => ({
+      stage: a.stage as string,
+      overallCloseRate: a.overallCloseRate,
+      avgDaysInStage: a.avgDaysInStage,
+    })),
+    year,
+    today,
+  );
 
   return {
     totalLeads, convertedToFirstConvo, conversionRate, avgDaysToFirstConvo,
