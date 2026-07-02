@@ -63,7 +63,7 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
   const delta = adjustedTotal - total;
 
   return (
-    <Modal open={open} onClose={onClose} title={`Weighted Forecast — FY${year}`} width="2xl">
+    <Modal open={open} onClose={onClose} title={`Weighted Forecast — FY${year}`} width="full">
 
       {/* Global modifiers */}
       <div className="mb-5 p-4 bg-slate-50 rounded-card border border-slate-200">
@@ -127,6 +127,7 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
                 <th className="px-5 py-3 pr-2 w-8">Excl.</th>
                 <th className="px-5 py-3 pr-4">Deal</th>
                 <th className="px-5 py-3 pr-4">Stage</th>
+                <th className="px-5 py-3 pr-4">Days in Stage</th>
                 <th className="px-5 py-3 pr-4">Close Basis</th>
                 <th className="px-5 py-3 pr-4">Close Date</th>
                 <th className="px-5 py-3 pr-4 text-right">Value</th>
@@ -169,6 +170,11 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
                     {/* Stage */}
                     <td className="px-5 py-3 pr-4 text-slate-600 text-xs whitespace-nowrap">
                       {STAGE_LABELS[d.stage] ?? d.stage}
+                    </td>
+
+                    {/* Days in Stage */}
+                    <td className="px-5 py-3 pr-4 text-slate-600 text-xs tabular-nums whitespace-nowrap">
+                      {d.daysInStage != null ? `${d.daysInStage}d` : "—"}
                     </td>
 
                     {/* Close basis toggle: Projected (default) vs Koda */}
@@ -266,7 +272,7 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200">
-                <td colSpan={8} className="pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <td colSpan={9} className="pt-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   {hasChanges ? "Adjusted Weighted Forecast" : "Total Weighted Forecast"}
                 </td>
                 <td className="pt-3 text-right">

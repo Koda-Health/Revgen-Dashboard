@@ -65,7 +65,7 @@ export function LeadsChartsSection({
         open={drillDown != null}
         onClose={() => setDrillDown(null)}
         title={drillDown?.title ?? ""}
-        width="xl"
+        width="3xl"
       >
         {drillDown && <LeadTable companies={drillDown.companies} />}
       </Modal>

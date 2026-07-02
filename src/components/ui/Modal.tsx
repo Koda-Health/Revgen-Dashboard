@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 
-type Width = "md" | "lg" | "xl" | "2xl";
+type Width = "md" | "lg" | "xl" | "2xl" | "3xl" | "full";
 const WIDTH_CLASSES: Record<Width, string> = {
   md:  "max-w-md",
   lg:  "max-w-2xl",
   xl:  "max-w-4xl",
   "2xl": "max-w-6xl",
+  "3xl": "max-w-7xl",
+  full: "max-w-[95vw]",
 };
 
 type Props = {

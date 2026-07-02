@@ -106,18 +106,15 @@ const SOURCE_MAP: Record<string, string> = {
   "Other":               "other",
 };
 
+// Only these six lead-funnel stages are pulled; any other Company Stage value
+// (e.g. Opportunity/Customer/Evangelist or others) maps to null and is ignored.
 const COMPANY_STAGE_MAP: Record<string, string> = {
-  // New lead-funnel taxonomy
   "Unaware":                    "unaware",
   "Outreach":                   "outreach",
   "Aware":                      "aware",
   "Engaged":                    "engaged",
   "Discovery Meeting Set":      "discovery_meeting_set",
   "Discovery Meeting Complete": "discovery_meeting_complete",
-  // Deprecated titles - still mapped for transition safety (map to retained enum values)
-  "Opportunity": "opportunity",
-  "Customer":    "customer",
-  "Evangelist":  "evangelist",
 };
 
 const SALES_TYPE_MAP: Record<string, string> = {

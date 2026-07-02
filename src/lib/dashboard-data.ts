@@ -114,6 +114,7 @@ export async function getDashboardData(comparisonDays: number, year: number): Pr
         companyName: d.company?.name ?? null,
         stage: d.stage as string,
         value: Number(d.value ?? 0),
+        stageEnteredAt: d.stageEnteredAt ?? null,
         expectedClosedDate: d.expectedClosedDate ?? null,
       })),
     assumptions.map((a) => ({
