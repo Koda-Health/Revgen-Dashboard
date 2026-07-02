@@ -220,10 +220,28 @@ model Deal {
   lastSyncedAt           DateTime?
   company                Company?             @relation(fields: [companyId], references: [id])
   revenueEntries         ActualRevenueEntry[]
+  stageTransitions       StageTransition[]
 
   @@index([companyId])
   @@index([stage])
   @@index([status])
+}
+
+// ─── Stage Transitions (velocity analytics, SP6) ─────────────────────────────
+// One row per (deal, stage) occupancy, reconstructed from Attio stage history.
+model StageTransition {
+  id           String    @id @default(uuid())
+  dealId       String
+  stage        String    // raw stage slug
+  pipeline     Pipeline
+  enteredAt    DateTime
+  exitedAt     DateTime? // null = current (still in this stage)
+  durationDays Int?      // set when exited
+  deal         Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
+  @@index([stage])
+  @@index([exitedAt])
 }
 
 // ─── Pipeline Snapshots ───────────────────────────────────────────────────────
