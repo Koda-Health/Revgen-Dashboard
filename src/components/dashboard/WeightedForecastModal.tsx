@@ -110,7 +110,7 @@ export function WeightedForecastModal({ open, onClose, deals, total, year }: Pro
         Deal Value × Stage Close Rate × Timing Factor.
         Timing Factor = months remaining after close date + (implementation period) / months in FY{year}.
         Implementation period is assumed to be 45 days.
-        Timing defaults to each deal's projected close date (stage-based); use the basis toggle
+        Timing defaults to each deal&rsquo;s projected close date (stage-based); use the basis toggle
         to switch a deal to its Koda Expected Close Date, or type a custom date to override.
         Only deals projected (or Koda-expected) to close within FY{year} are included.
       </p>

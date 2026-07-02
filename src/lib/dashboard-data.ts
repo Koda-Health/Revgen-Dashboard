@@ -48,7 +48,6 @@ export type DashboardData = {
 export async function getDashboardData(comparisonDays: number, year: number): Promise<DashboardData> {
   const today = new Date();
   const fiscalYearStart = new Date(`${year}-01-01`);
-  const fiscalYearEnd = new Date(`${year}-12-31T23:59:59`);
 
   const [deals, assumptions, fiscalConfig, actualRevSum] = await Promise.all([
     prisma.deal.findMany({

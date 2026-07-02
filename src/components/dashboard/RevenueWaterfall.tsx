@@ -73,7 +73,7 @@ export function RevenueWaterfall({ data }: { data: WaterfallStage[] }) {
           Weighted Pipeline by Stage
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Each stage's weighted contribution (pipeline × close rate) building to total weighted new-logo pipeline
+          Each stage&rsquo;s weighted contribution (pipeline × close rate) building to total weighted new-logo pipeline
         </p>
       </div>
       <ResponsiveContainer width="100%" height={340}>
