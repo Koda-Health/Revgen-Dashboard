@@ -178,6 +178,31 @@ export function PipelineVelocityChart() {
           </LineChart>
         </ResponsiveContainer>
       )}
+
+      <details className="mt-4 text-xs text-slate-500">
+        <summary className="cursor-pointer font-semibold text-slate-600 hover:text-navy">
+          How is this calculated?
+        </summary>
+        <ul className="mt-2 space-y-1 list-disc pl-4 leading-relaxed">
+          <li>Each point is a quarter-end for the last 8 quarters; the current quarter is shown as of today.</li>
+          <li>
+            <span className="font-medium text-navy">Stage lines</span> plot the average days a deal spent in
+            that stage, from completed stage transitions (a deal that entered and later left the stage) whose
+            exit date falls within the selected trailing window ending at each point.
+          </li>
+          <li>
+            The window toggle (Trailing 3/6/9/12M) sets that lookback at every point;
+            <span className="font-medium text-navy"> Lifetime</span> uses all history up to each point.
+          </li>
+          <li>
+            <span className="font-medium text-navy">Overall Cycle</span> is the average time from First
+            Conversation to Closed-Won for deals won within the window. When no deals were won in the window it
+            falls back to the average time currently in pipeline (First Conversation to close or today), labeled
+            &ldquo;time in pipeline&rdquo;.
+          </li>
+          <li>Based on new-logo stage history synced from Attio &mdash; run a sync to refresh.</li>
+        </ul>
+      </details>
     </div>
   );
 }
