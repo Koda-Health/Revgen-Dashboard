@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { DealStatus, CompanyStage } from "@prisma/client";
 import type { BreakdownEntry } from "@/lib/format";
-import type { WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
+import { buildWeightedForecastBreakdown, type WeightedForecastDeal } from "@/lib/compute-adjusted-forecast";
 import { NEW_LOGO_STAGE_ORDER, IMPLEMENTATION_LAG_DAYS, pipelineForStage } from "@/lib/stages";
 
 const ACTIVE_STAGES = NEW_LOGO_STAGE_ORDER;
@@ -68,10 +68,10 @@ export type LeadsData = {
   companiesByStage: Record<string, LeadCompanyRow[]>;
 };
 
-// Stages that classify as "leads" (not yet in the pipeline)
-const LEAD_STAGES: CompanyStage[] = ["unaware", "aware", "engaged"];
-// Stages that count as "converted" (entered the sales funnel)
-const CONVERTED_STAGES: CompanyStage[] = ["opportunity", "customer", "evangelist"];
+// Stages that classify as "leads" (pre-pipeline). New taxonomy: all six are lead stages.
+const LEAD_STAGES: CompanyStage[] = [
+  "unaware", "outreach", "aware", "engaged", "discovery_meeting_set", "discovery_meeting_complete",
+];
 
 export async function getLeadsData(year = 2026): Promise<LeadsData> {
   const today = new Date();
@@ -117,19 +117,20 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
 
   // ── Leads KPIs ──────────────────────────────────────────────────────────────
 
-  // "Leads" = companies at unaware / aware / engaged stage
+  // "Leads" = companies whose company stage is in the lead funnel
   const leadCompanies = companies.filter(
     (c) => c.companyStage != null && LEAD_STAGES.includes(c.companyStage as CompanyStage)
   );
   const totalLeads = leadCompanies.length;
 
-  // "Converted" = companies that reached opportunity, customer, or evangelist stage
+  // "Converted" = companies with an associated deal that reached First Conversation.
+  // Stage-taxonomy-independent; replaces the old opportunity/customer/evangelist test.
   const convertedCompanies = companies.filter(
-    (c) => c.companyStage != null && CONVERTED_STAGES.includes(c.companyStage as CompanyStage)
+    (c) => c.deals.some((d) => d.firstConvoDate != null)
   );
   const convertedToFirstConvo = convertedCompanies.length;
 
-  // Conversion rate = converted / total leads (opportunity+ / lead-stage companies)
+  // Conversion rate = companies reaching first convo / lead-stage companies
   const conversionRate = totalLeads > 0 ? convertedToFirstConvo / totalLeads : 0;
 
   // Avg days to first convo: deal.attioCreatedAt → deal.firstConvoDate
@@ -195,7 +196,7 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
       .filter((d) => (d.status as string) === "active" || (d.status as string) === "stalled")
       .reduce((s, d) => s + Number(d.value ?? 0), 0);
   }
-  const STAGE_ORDER_MAP: Record<string, number> = { unaware: 0, aware: 1, engaged: 2 };
+  const STAGE_ORDER_MAP: Record<string, number> = { unaware: 0, outreach: 1, aware: 2, engaged: 3, discovery_meeting_set: 4, discovery_meeting_complete: 5 };
   const byStage: BreakdownEntry[] = Object.entries(byStageMap)
     .map(([key, v]) => ({ key, ...v }))
     .sort((a, b) => (STAGE_ORDER_MAP[a.key] ?? 9) - (STAGE_ORDER_MAP[b.key] ?? 9));
@@ -300,36 +301,24 @@ export async function getLeadsData(year = 2026): Promise<LeadsData> {
     stage: d.stage as string | null,
   }));
 
-  // ── Weighted forecast breakdown (same logic as getDashboardData) ─────────────
-  const fiscalYearStart = new Date(`${year}-01-01T00:00:00`);
-  const fiscalYearEndDate = new Date(`${year}-12-31T23:59:59`);
-  const yearMs = fiscalYearEndDate.getTime() - fiscalYearStart.getTime();
-  const rateMap = new Map(assumptions.map((a) => [a.stage as string, a.overallCloseRate]));
-
-  const weightedForecastBreakdown: WeightedForecastDeal[] = [];
-  for (const deal of newLogoActive) {
-    if (!deal.expectedClosedDate || !deal.stage || !deal.value) continue;
-    const closeDate = new Date(deal.expectedClosedDate);
-    if (closeDate < fiscalYearStart || closeDate > fiscalYearEndDate) continue;
-    const closeRate = rateMap.get(deal.stage as string) ?? 0;
-    // Add implementation lag: revenue starts IMPLEMENTATION_LAG_DAYS after close date
-    const revenueStartDate = new Date(closeDate.getTime() + IMPLEMENTATION_LAG_DAYS * 24 * 60 * 60 * 1000);
-    const remainingMs = Math.max(0, fiscalYearEndDate.getTime() - revenueStartDate.getTime());
-    const timingFactor = yearMs > 0 ? remainingMs / yearMs : 0;
-    const contribution = Number(deal.value) * closeRate * timingFactor;
-    weightedForecastBreakdown.push({
+  // Weighted forecast breakdown (shared builder - identical to the Dashboard tab).
+  const weightedForecastBreakdown = buildWeightedForecastBreakdown(
+    newLogoActive.map((deal) => ({
       id: deal.id,
       name: deal.name,
       companyName: deal.company?.name ?? null,
       stage: deal.stage as string,
-      value: Number(deal.value),
-      closeRate,
-      expectedClosedDate: deal.expectedClosedDate.toISOString(),
-      timingFactor,
-      contribution,
-    });
-  }
-  weightedForecastBreakdown.sort((a, b) => b.contribution - a.contribution);
+      value: Number(deal.value ?? 0),
+      expectedClosedDate: deal.expectedClosedDate ?? null,
+    })),
+    assumptions.map((a) => ({
+      stage: a.stage as string,
+      overallCloseRate: a.overallCloseRate,
+      avgDaysInStage: a.avgDaysInStage,
+    })),
+    year,
+    today,
+  );
 
   return {
     totalLeads, convertedToFirstConvo, conversionRate, avgDaysToFirstConvo,

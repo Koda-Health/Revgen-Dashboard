@@ -11,7 +11,13 @@ import type { DealRow } from "@/components/ui/DealTable";
 
 type DrillDown = { title: string; deals: DealRow[] } | null;
 
-export function PipelineBarCharts({ data }: { data: PipelineData }) {
+export function PipelineBarCharts({
+  data,
+  variant = "new_logo",
+}: {
+  data: PipelineData;
+  variant?: "new_logo" | "renewal";
+}) {
   const [drillDown, setDrillDown] = useState<DrillDown>(null);
 
   function handleClick(
@@ -34,6 +40,9 @@ export function PipelineBarCharts({ data }: { data: PipelineData }) {
     setDrillDown({ title, deals: filtered });
   }
 
+  // Renewals intentionally omit the "By Source" and "By Deal Type" charts.
+  const showSourceAndType = variant === "new_logo";
+
   return (
     <>
       <div className="grid grid-cols-2 gap-6">
@@ -43,24 +52,28 @@ export function PipelineBarCharts({ data }: { data: PipelineData }) {
           labelMap={STAGE_LABELS}
           onBarClick={(k) => handleClick("stage", k)}
         />
-        <PipelineBarChart
-          title="By Source"
-          data={data.bySource}
-          labelMap={SOURCE_LABELS}
-          onBarClick={(k) => handleClick("source", k)}
-        />
+        {showSourceAndType && (
+          <PipelineBarChart
+            title="By Source"
+            data={data.bySource}
+            labelMap={SOURCE_LABELS}
+            onBarClick={(k) => handleClick("source", k)}
+          />
+        )}
         <PipelineBarChart
           title="By Company Type"
           data={data.byCompanyType}
           labelMap={SALES_TYPE_LABELS}
           onBarClick={(k) => handleClick("companyType", k)}
         />
-        <PipelineBarChart
-          title="By Deal Type"
-          data={data.byDealType}
-          labelMap={DEAL_TYPE_LABELS}
-          onBarClick={(k) => handleClick("dealType", k)}
-        />
+        {showSourceAndType && (
+          <PipelineBarChart
+            title="By Deal Type"
+            data={data.byDealType}
+            labelMap={DEAL_TYPE_LABELS}
+            onBarClick={(k) => handleClick("dealType", k)}
+          />
+        )}
       </div>
       <Modal
         open={drillDown != null}

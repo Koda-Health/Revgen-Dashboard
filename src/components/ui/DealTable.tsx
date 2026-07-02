@@ -1,5 +1,6 @@
 import { formatCurrency, SOURCE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
 import { StagePill } from "@/components/ui/StagePill";
+import type { PaceStatus } from "@/lib/stage-pace";
 
 export type DealRow = {
   id: string;
@@ -12,6 +13,7 @@ export type DealRow = {
   typeOfDeal: string | null;
   status: string;
   daysInStage: number | null;
+  paceStatus: PaceStatus;
   firstConvoDate: string | null;
   expectedClosedDate: string | null;
 };
@@ -37,6 +39,7 @@ export function DealTable({ deals, onRowClick, compact = false }: Props) {
             {!compact && <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Source</th>}
             {!compact && <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Type</th>}
             {!compact && <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Exp. Close</th>}
+            <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Days in Stage</th>
             <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</th>
           </tr>
         </thead>
@@ -76,8 +79,11 @@ export function DealTable({ deals, onRowClick, compact = false }: Props) {
                     : "—"}
                 </td>
               )}
+              <td className="px-5 py-3 text-slate-600 tabular-nums">
+                {deal.daysInStage != null ? `${deal.daysInStage}d` : "—"}
+              </td>
               <td className="px-5 py-3">
-                <StagePill value={deal.status} type="status" />
+                <StagePill value={deal.paceStatus} type="pace" />
               </td>
             </tr>
           ))}

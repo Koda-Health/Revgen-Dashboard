@@ -1,8 +1,9 @@
 // src/lib/run-sync.ts
 import { prisma } from "@/lib/prisma";
-import { fetchDeals, fetchCompanies, fetchDealStageHistories } from "@/lib/attio";
+import { fetchDeals, fetchCompanies, fetchDealStageHistoriesDetailed } from "@/lib/attio";
 import { buildDealUpsert } from "@/lib/sync-utils";
-import type { SalesType, CompanyStage, BudgetCycle } from "@prisma/client";
+import { pipelineForStage } from "@/lib/stages";
+import type { SalesType, CompanyStage, BudgetCycle, Pipeline } from "@prisma/client";
 
 export type AttioSyncResult = {
   companiesUpserted: number;
@@ -61,9 +62,9 @@ export async function runAttioSync(): Promise<AttioSyncResult> {
   // 3. Sync deals
   const deals = await fetchDeals();
 
-  // 3a. Derive firstConvoDate from Attio stage history (source of truth — the
-  // manual `first_conversation_date` custom field is rarely populated by reps).
-  const firstConvoDates = await fetchDealStageHistories(deals.map((d) => d.id));
+  // 3a. Fetch Attio stage history once per deal: used both to derive firstConvoDate
+  // (source of truth) and to persist per-stage transitions for velocity analytics.
+  const histories = await fetchDealStageHistoriesDetailed(deals.map((d) => d.id));
 
   let dealsUpserted = 0;
 
@@ -72,9 +73,10 @@ export async function runAttioSync(): Promise<AttioSyncResult> {
     // If the history fetch succeeded, use its derived date (which may be null
     // when the deal hasn't reached First Conversation yet). If it failed, leave
     // the existing DB value untouched by passing `undefined`.
+    const detail = histories.get(deal.id);
     const dealWithHistory = {
       ...deal,
-      firstConvoDate: firstConvoDates.has(deal.id) ? firstConvoDates.get(deal.id) ?? null : undefined,
+      firstConvoDate: detail ? detail.firstConvoDate : undefined,
     };
     const upsert = buildDealUpsert(
       dealWithHistory,
@@ -83,6 +85,29 @@ export async function runAttioSync(): Promise<AttioSyncResult> {
     );
     await prisma.deal.upsert(upsert);
     dealsUpserted++;
+
+    // Persist stage transitions (velocity analytics). Replace-on-resync per deal.
+    if (detail) {
+      const rows = detail.transitions
+        .map((t) => {
+          const pipeline = pipelineForStage(t.stage);
+          if (!pipeline) return null;
+          const durationDays = t.exitedAt
+            ? Math.max(0, Math.round((t.exitedAt.getTime() - t.enteredAt.getTime()) / 86_400_000))
+            : null;
+          return {
+            dealId: deal.id,
+            stage: t.stage,
+            pipeline: pipeline as Pipeline,
+            enteredAt: t.enteredAt,
+            exitedAt: t.exitedAt,
+            durationDays,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+      await prisma.stageTransition.deleteMany({ where: { dealId: deal.id } });
+      if (rows.length > 0) await prisma.stageTransition.createMany({ data: rows });
+    }
   }
 
   // 4. Compute orphans — IDs present locally but missing from Attio response

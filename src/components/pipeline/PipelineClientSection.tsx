@@ -91,7 +91,7 @@ export function PipelineClientSection({
         )}
       </div>
       <PipelineKpiStrip data={filteredData} variant={variant} />
-      <PipelineBarCharts data={filteredData} />
+      <PipelineBarCharts data={filteredData} variant={variant} />
       <InteractiveBreakdown deals={filteredData.activeDeals} />
     </div>
   );

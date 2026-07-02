@@ -107,9 +107,14 @@ const SOURCE_MAP: Record<string, string> = {
 };
 
 const COMPANY_STAGE_MAP: Record<string, string> = {
-  "Unaware":     "unaware",
-  "Aware":       "aware",
-  "Engaged":     "engaged",
+  // New lead-funnel taxonomy
+  "Unaware":                    "unaware",
+  "Outreach":                   "outreach",
+  "Aware":                      "aware",
+  "Engaged":                    "engaged",
+  "Discovery Meeting Set":      "discovery_meeting_set",
+  "Discovery Meeting Complete": "discovery_meeting_complete",
+  // Deprecated titles - still mapped for transition safety (map to retained enum values)
   "Opportunity": "opportunity",
   "Customer":    "customer",
   "Evangelist":  "evangelist",
@@ -275,6 +280,58 @@ export async function fetchDealStageHistories(
         } catch (err) {
           // On failure, leave the map entry unset so the upsert preserves the existing DB value
           console.error(`[attio] stage history failed for ${id}:`, err);
+        }
+      })
+    )
+  );
+  return out;
+}
+
+// ─── Stage transitions (velocity analytics, SP6) ─────────────────────────────
+
+export type StageTransitionInput = {
+  stage: string; // internal slug
+  enteredAt: Date;
+  exitedAt: Date | null;
+};
+
+function deriveTransitions(history: StageHistoryEntry[]): StageTransitionInput[] {
+  const out: StageTransitionInput[] = [];
+  for (const e of history) {
+    if (!e.active_from) continue;
+    const slug = attioStageToSlug(e.status?.title ?? null);
+    if (!slug) continue;
+    out.push({
+      stage: slug,
+      enteredAt: new Date(e.active_from),
+      exitedAt: e.active_until ? new Date(e.active_until) : null,
+    });
+  }
+  return out;
+}
+
+export type DealHistoryDetail = {
+  firstConvoDate: Date | null;
+  transitions: StageTransitionInput[];
+};
+
+// Like fetchDealStageHistories, but also returns full per-stage transitions (for velocity).
+export async function fetchDealStageHistoriesDetailed(
+  dealIds: string[],
+): Promise<Map<string, DealHistoryDetail>> {
+  const limit = pLimit(8);
+  const out = new Map<string, DealHistoryDetail>();
+  await Promise.all(
+    dealIds.map((id) =>
+      limit(async () => {
+        try {
+          const history = await fetchDealStageHistory(id);
+          out.set(id, {
+            firstConvoDate: deriveFirstConvoDate(history),
+            transitions: deriveTransitions(history),
+          });
+        } catch (err) {
+          console.error(`[attio] detailed stage history failed for ${id}:`, err);
         }
       })
     )

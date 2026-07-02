@@ -29,6 +29,7 @@ function bucketDealToDealRow(b: BucketDeal): DealRow {
     typeOfDeal: b.typeOfDeal,
     status: b.status ?? "—",
     daysInStage: b.daysInStage,
+    paceStatus: "no_benchmark",
     firstConvoDate: b.firstConvoDate,
     expectedClosedDate: b.expectedClosedDate,
   };

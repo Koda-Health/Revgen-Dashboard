@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { DealOverride } from "@/lib/compute-adjusted-forecast";
+import type { DealOverride, DateSource } from "@/lib/compute-adjusted-forecast";
 
 const GOAL_KEY      = "scenario_goalOverride";
 const BOOKED_KEY    = "scenario_bookedOverride";
@@ -56,7 +56,7 @@ function _clearAll() {
 // ── What-if setters ─────────────────────────────────────────────────────────
 function _setDealOverride(
   dealId: string,
-  update: { excluded?: boolean | null; dateOverride?: string | null; valueOverride?: number | null },
+  update: { excluded?: boolean | null; dateOverride?: string | null; valueOverride?: number | null; dateSource?: DateSource | null },
 ) {
   const existing: DealOverride = _dealOverrides[dealId] ?? {};
   const updated: DealOverride  = { ...existing };
@@ -64,9 +64,11 @@ function _setDealOverride(
   if ("excluded"    in update) { if (update.excluded)           updated.excluded    = true;             else delete updated.excluded; }
   if ("dateOverride" in update) { if (update.dateOverride)      updated.dateOverride = update.dateOverride!; else delete updated.dateOverride; }
   if ("valueOverride" in update){ if (update.valueOverride != null) updated.valueOverride = update.valueOverride!; else delete updated.valueOverride; }
+  // dateSource defaults to "projected"; only persist an explicit "koda" choice.
+  if ("dateSource" in update) { if (update.dateSource === "koda") updated.dateSource = "koda"; else delete updated.dateSource; }
 
   // Remove entry entirely if nothing left
-  if (!updated.excluded && !updated.dateOverride && updated.valueOverride === undefined) {
+  if (!updated.excluded && !updated.dateOverride && updated.valueOverride === undefined && !updated.dateSource) {
     const { [dealId]: _unused, ...rest } = _dealOverrides;
     void _unused;
     _dealOverrides = rest;

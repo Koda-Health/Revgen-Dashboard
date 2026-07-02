@@ -57,9 +57,13 @@ export const TIER_LABELS: Record<string, string> = {
 };
 
 export const COMPANY_STAGE_LABELS: Record<string, string> = {
-  unaware:     "Unaware",
-  aware:       "Aware",
-  engaged:     "Engaged",
+  unaware:                    "Unaware",
+  outreach:                   "Outreach",
+  aware:                      "Aware",
+  engaged:                    "Engaged",
+  discovery_meeting_set:      "Discovery Meeting Set",
+  discovery_meeting_complete: "Discovery Meeting Complete",
+  // Deprecated (historical rows)
   opportunity: "Opportunity",
   customer:    "Customer",
   evangelist:  "Evangelist",
