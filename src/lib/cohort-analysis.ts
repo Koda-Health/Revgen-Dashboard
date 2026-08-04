@@ -27,7 +27,8 @@ export type BucketDeal = {
   dealId: string;
   name: string;
   companyName: string | null;
-  value: number;
+  valueA: number | null;   // value as of snapshot A; null when deal didn't exist at A (New Pipeline)
+  valueB: number | null;   // value as of snapshot B; null when deal didn't exist at B (Not Found)
   stageA: string | null;   // null when deal didn't exist at snapshot A (New Pipeline)
   stageB: string | null;   // null when deal didn't exist at snapshot B (Not Found)
   status: string | null;   // snapshot B status (or A's when deal not in B)
@@ -41,7 +42,8 @@ export type BucketDeal = {
 export type CohortRow = {
   category: "closed_won" | "closed_lost" | "advanced" | "held" | "regressed" | "not_found";
   dealCount: number;
-  totalValue: number;
+  totalValueA: number;
+  totalValueB: number;   // equals totalValueA for "not_found" (no B data exists)
   deals: BucketDeal[];
 };
 
@@ -55,6 +57,10 @@ export type FlowMetrics = {
   lostDeals: number;
   lostValue: number;
   lostDealsList: BucketDeal[];
+  // Value drift (Date B - Date A) on deals that stayed in the funnel (advanced/held/regressed) —
+  // i.e. re-scoping/re-pricing, excluding deals that closed, dropped, or are newly added.
+  // This does NOT sum into netPipelineChange (see cohort-analysis notes) — it's a standalone metric.
+  pipelineUpside: number;
   netPipelineChange: number;
 };
 
@@ -120,13 +126,14 @@ export async function getCohortAnalysis(
     snapshotB: typeof manifestB.deals[number] | undefined,
   ): BucketDeal {
     const live = liveByDealId.get(dealId);
-    // Prefer B's name/value (most recent snapshot context), fall back to A.
+    // Prefer B's name (most recent snapshot context), fall back to A.
     const src = snapshotB ?? snapshotA;
     return {
       dealId,
       name: src?.name ?? live?.name ?? dealId,
       companyName: live?.company?.name ?? null,
-      value: Number((src?.value ?? 0)),
+      valueA: snapshotA ? Number(snapshotA.value ?? 0) : null,
+      valueB: snapshotB ? Number(snapshotB.value ?? 0) : null,
       stageA: snapshotA?.stage ?? null,
       stageB: snapshotB?.stage ?? null,
       status: (snapshotB?.status ?? snapshotA?.status) ?? null,
@@ -140,58 +147,77 @@ export async function getCohortAnalysis(
     };
   }
 
-  const counts: Record<CohortRow["category"], { count: number; value: number; deals: BucketDeal[] }> = {
-    closed_won:  { count: 0, value: 0, deals: [] },
-    closed_lost: { count: 0, value: 0, deals: [] },
-    advanced:    { count: 0, value: 0, deals: [] },
-    held:        { count: 0, value: 0, deals: [] },
-    regressed:   { count: 0, value: 0, deals: [] },
-    not_found:   { count: 0, value: 0, deals: [] },
+  const counts: Record<CohortRow["category"], { count: number; valueA: number; valueB: number; deals: BucketDeal[] }> = {
+    closed_won:  { count: 0, valueA: 0, valueB: 0, deals: [] },
+    closed_lost: { count: 0, valueA: 0, valueB: 0, deals: [] },
+    advanced:    { count: 0, valueA: 0, valueB: 0, deals: [] },
+    held:        { count: 0, valueA: 0, valueB: 0, deals: [] },
+    regressed:   { count: 0, valueA: 0, valueB: 0, deals: [] },
+    not_found:   { count: 0, valueA: 0, valueB: 0, deals: [] },
   };
 
   for (const dealA of cohortDeals) {
-    const v = Number(dealA.value ?? 0);
+    const vA = Number(dealA.value ?? 0);
     const dealB = bByDealId.get(dealA.dealId);
     const bd = makeBucketDeal(dealA.dealId, dealA, dealB);
 
     if (!dealB) {
       counts.not_found.count += 1;
-      counts.not_found.value += v;
+      counts.not_found.valueA += vA;
       counts.not_found.deals.push(bd);
       continue;
     }
+    const vB = Number(dealB.value ?? 0);
     if (WON_STAGES.has(dealB.stage ?? "")) {
       counts.closed_won.count += 1;
-      counts.closed_won.value += v;
+      counts.closed_won.valueA += vA;
+      counts.closed_won.valueB += vB;
       counts.closed_won.deals.push(bd);
     } else if (LOST_STAGES.has(dealB.stage ?? "")) {
       counts.closed_lost.count += 1;
-      counts.closed_lost.value += v;
+      counts.closed_lost.valueA += vA;
+      counts.closed_lost.valueB += vB;
       counts.closed_lost.deals.push(bd);
     } else {
       const aIdx = STAGE_ORDER[dealA.stage ?? ""] ?? -1;
       const bIdx = STAGE_ORDER[dealB.stage ?? ""] ?? -1;
       if (bIdx > aIdx) {
         counts.advanced.count += 1;
-        counts.advanced.value += v;
+        counts.advanced.valueA += vA;
+        counts.advanced.valueB += vB;
         counts.advanced.deals.push(bd);
       } else if (bIdx === aIdx) {
         counts.held.count += 1;
-        counts.held.value += v;
+        counts.held.valueA += vA;
+        counts.held.valueB += vB;
         counts.held.deals.push(bd);
       } else {
         counts.regressed.count += 1;
-        counts.regressed.value += v;
+        counts.regressed.valueA += vA;
+        counts.regressed.valueB += vB;
         counts.regressed.deals.push(bd);
       }
     }
   }
 
   const cohortRows: CohortRow[] = (
-    Object.entries(counts) as [CohortRow["category"], { count: number; value: number; deals: BucketDeal[] }][]
-  ).map(([category, { count, value, deals }]) => ({
-    category, dealCount: count, totalValue: value, deals,
+    Object.entries(counts) as [CohortRow["category"], { count: number; valueA: number; valueB: number; deals: BucketDeal[] }][]
+  ).map(([category, { count, valueA, valueB, deals }]) => ({
+    category,
+    dealCount: count,
+    totalValueA: valueA,
+    // "not_found" deals have no B snapshot at all — report A's value as the headline instead of 0.
+    totalValueB: category === "not_found" ? valueA : valueB,
+    deals,
   }));
+
+  // Value drift on deals that stayed in the funnel (advanced/held/regressed), independent of
+  // deals that closed, dropped out, or were newly added. Deliberately NOT reconciled into
+  // netPipelineChange below — see FlowMetrics.pipelineUpside doc comment.
+  const pipelineUpside =
+    (counts.advanced.valueB - counts.advanced.valueA) +
+    (counts.held.valueB - counts.held.valueA) +
+    (counts.regressed.valueB - counts.regressed.valueA);
 
   // Flow metrics
   const newDealsRaw = bPipelineDeals.filter((d) => !aPipelineIds.has(d.dealId));
@@ -211,6 +237,7 @@ export async function getCohortAnalysis(
     lostDeals: lostDealsRaw.length,
     lostValue: lostDealsRaw.reduce((s, d) => s + Number(d.value ?? 0), 0),
     lostDealsList: lostDealsRaw.map((d) => makeBucketDeal(d.dealId, aByDealId.get(d.dealId), d)),
+    pipelineUpside,
     netPipelineChange: bTotal - aTotal,
   };
 
