@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { StagePill } from "@/components/ui/StagePill";
 import { DealDetailModal } from "@/components/dashboard/DealDetailModal";
-import { formatCurrency, SOURCE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
+import { formatCurrency, formatDelta, SOURCE_LABELS, DEAL_TYPE_LABELS } from "@/lib/format";
 import type { BucketDeal } from "@/lib/cohort-analysis";
 import type { DealRow } from "@/components/ui/DealTable";
 
@@ -23,7 +23,7 @@ function bucketDealToDealRow(b: BucketDeal): DealRow {
     name: b.name,
     companyName: b.companyName,
     companyType: null,
-    value: b.value,
+    value: b.valueB ?? b.valueA, // prefer most-recent known value
     stage: b.stageB ?? b.stageA, // prefer most-recent stage
     source: b.source,
     typeOfDeal: b.typeOfDeal,
@@ -33,6 +33,18 @@ function bucketDealToDealRow(b: BucketDeal): DealRow {
     firstConvoDate: b.firstConvoDate,
     expectedClosedDate: b.expectedClosedDate,
   };
+}
+
+function ValueDeltaCell({ valueA, valueB }: { valueA: number | null; valueB: number | null }) {
+  if (valueA == null || valueB == null) return <span className="text-slate-400">—</span>;
+  const delta = valueB - valueA;
+  if (delta === 0) return <span className="text-slate-400">—</span>;
+  const fmt = formatDelta(delta);
+  return (
+    <span className={fmt.positive ? "text-emerald-600 font-semibold" : "text-coral font-semibold"}>
+      {fmt.display}
+    </span>
+  );
 }
 
 export function CohortBucketModal({
@@ -56,7 +68,9 @@ export function CohortBucketModal({
                 <tr className="bg-slate-50 border-b border-slate-200 text-left text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
                   <th className="px-5 py-3 pr-4">Deal</th>
                   <th className="px-5 py-3 pr-4">Company</th>
-                  <th className="px-5 py-3 pr-4 text-right">Value</th>
+                  {showStageA && <th className="px-5 py-3 pr-4 text-right">Value (A)</th>}
+                  {showStageB && <th className="px-5 py-3 pr-4 text-right">Value (B)</th>}
+                  {showStageA && showStageB && <th className="px-5 py-3 pr-4 text-right">Δ</th>}
                   {showStageA && <th className="px-5 py-3 pr-4">Stage (A)</th>}
                   {showStageB && <th className="px-5 py-3 pr-4">Stage (B)</th>}
                   <th className="px-5 py-3 pr-4">Source</th>
@@ -72,9 +86,25 @@ export function CohortBucketModal({
                   >
                     <td className="px-5 py-3 pr-4 font-semibold text-navy">{d.name}</td>
                     <td className="px-5 py-3 pr-4 text-slate-600">{d.companyName ?? "—"}</td>
-                    <td className="px-5 py-3 pr-4 text-right font-semibold text-navy tabular-nums">
-                      {formatCurrency(d.value)}
-                    </td>
+                    {showStageA && (
+                      <td
+                        className={`px-5 py-3 pr-4 text-right tabular-nums ${
+                          showStageB ? "text-slate-600" : "font-semibold text-navy"
+                        }`}
+                      >
+                        {d.valueA != null ? formatCurrency(d.valueA) : "—"}
+                      </td>
+                    )}
+                    {showStageB && (
+                      <td className="px-5 py-3 pr-4 text-right font-semibold text-navy tabular-nums">
+                        {d.valueB != null ? formatCurrency(d.valueB) : "—"}
+                      </td>
+                    )}
+                    {showStageA && showStageB && (
+                      <td className="px-5 py-3 pr-4 text-right tabular-nums">
+                        <ValueDeltaCell valueA={d.valueA} valueB={d.valueB} />
+                      </td>
+                    )}
                     {showStageA && (
                       <td className="px-5 py-3 pr-4">
                         {d.stageA ? <StagePill value={d.stageA} /> : <span className="text-slate-400">—</span>}

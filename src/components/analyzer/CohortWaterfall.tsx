@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { formatCurrency, formatPct } from "@/lib/format";
+import { formatCurrency, formatDelta, formatPct } from "@/lib/format";
 import { ExportButton } from "@/components/ui/ExportButton";
 import { CohortBucketModal } from "./CohortBucketModal";
 import type { CohortAnalysisResult, CohortRow, BucketDeal } from "@/lib/cohort-analysis";
@@ -129,16 +129,18 @@ export function CohortWaterfall({ manifestIdA, manifestIdB }: Props) {
               <tr className="bg-slate-50 border-b border-slate-200 text-left text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
                 <th className="px-5 py-3 pr-4">Outcome</th>
                 <th className="px-5 py-3 pr-4 text-right">Deals</th>
-                <th className="px-5 py-3 pr-4 text-right">Value</th>
+                <th className="px-5 py-3 pr-4 text-right">Value ({dateB})</th>
                 <th className="px-5 py-3 text-right">% of Cohort</th>
               </tr>
             </thead>
             <tbody>
               {CATEGORY_ORDER.map((cat) => {
-                const row = rowMap.get(cat) ?? { category: cat, dealCount: 0, totalValue: 0, deals: [] };
+                const row = rowMap.get(cat) ?? { category: cat, dealCount: 0, totalValueA: 0, totalValueB: 0, deals: [] };
                 const meta = CATEGORY_META[cat];
                 const pct = data.cohortTotal > 0 ? row.dealCount / data.cohortTotal : 0;
                 const clickable = row.dealCount > 0;
+                const delta = row.totalValueB - row.totalValueA;
+                const deltaFmt = formatDelta(delta);
                 return (
                   <tr
                     key={cat}
@@ -157,8 +159,22 @@ export function CohortWaterfall({ manifestIdA, manifestIdB }: Props) {
                     <td className="px-5 py-3 pr-4 text-right font-semibold text-navy tabular-nums">
                       {row.dealCount}
                     </td>
-                    <td className="px-5 py-3 pr-4 text-right font-semibold text-navy tabular-nums">
-                      {formatCurrency(row.totalValue)}
+                    <td className="px-5 py-3 pr-4 text-right tabular-nums">
+                      <div className="font-semibold text-navy">{formatCurrency(row.totalValueB)}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {cat === "not_found" ? (
+                          <>value as of {dateA} — dropped from pipeline</>
+                        ) : (
+                          <>
+                            was {formatCurrency(row.totalValueA)} at {dateA}
+                            {delta !== 0 && (
+                              <span className={deltaFmt.positive ? "text-emerald-600" : "text-coral"}>
+                                {" "}({deltaFmt.display})
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-3 text-right text-slate-500">{formatPct(pct)}</td>
                   </tr>
@@ -174,7 +190,7 @@ export function CohortWaterfall({ manifestIdA, manifestIdB }: Props) {
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-4">
           Pipeline Flow: {dateA} → {dateB}
         </h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <button
             type="button"
             disabled={data.flowMetrics.newDeals === 0}
@@ -231,6 +247,22 @@ export function CohortWaterfall({ manifestIdA, manifestIdB }: Props) {
             </p>
             <p className="text-xs text-slate-500">{formatCurrency(data.flowMetrics.lostValue)}</p>
           </button>
+
+          <div className="bg-slate-50 rounded-card p-4 border border-slate-200">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Pipeline Upside <span className="normal-case font-normal text-slate-400">(Retained Deals)</span>
+            </p>
+            <p
+              className={`text-xl font-bold ${
+                data.flowMetrics.pipelineUpside >= 0 ? "text-emerald-700" : "text-coral"
+              }`}
+            >
+              {formatDelta(data.flowMetrics.pipelineUpside).display}
+            </p>
+            <p className="text-xs text-slate-500">
+              Value change on deals still active in pipeline (not new, won, or lost)
+            </p>
+          </div>
 
           <div className="bg-slate-50 rounded-card p-4 border border-slate-200">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
